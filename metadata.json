@@ -1,0 +1,8 @@
+{
+  "name": "وثائقي التربوية",
+  "description": "منصة ويب عربية احترافيّة وشاملة للأساتذة المغاربة لإنشاء وتعديل ومعاينة وتصدير الجذاذات ومواثيق الأقسام والفروض وشبكات التنقيط والوثائق التربوية.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

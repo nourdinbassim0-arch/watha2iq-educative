@@ -1,0 +1,283 @@
+export type DocumentType = 
+  | 'fiche_pedagogique'       // الجذاذات والتخطيطات التربوية
+  | 'charte_classe'           // ميثاق القسم
+  | 'controle_devoir'         // الفروض والاختبارات
+  | 'evaluation_soutien'      // أنشطة التقويم والدعم والمعالجة
+  | 'grille_notation'         // شبكات التنقيط والتفريغ
+  | 'fiche_activite'          // بطاقات الأنشطة والتمارين
+  | 'rapport_conseil'         // تقارير مجالس الأقسام واجتماعات الأولياء
+  | 'attestation_affiche'     // الشواهد والملصقات التربوية
+  | 'registre_notes';         // سجل النقط والتقويم الشامل
+
+export type EducationLevel = 'primary' | 'middle' | 'high';
+
+export type SubjectCategory = 'scientific' | 'literary_humanities' | 'physical_education';
+
+export type DocumentLanguage = 'ar' | 'fr' | 'en';
+
+export type ThemeColor = 'emerald' | 'crimson' | 'royal' | 'gold' | 'slate';
+
+export type PageFormat = 
+  | 'a4_portrait'
+  | 'a4_landscape'
+  | 'a3_portrait'
+  | 'a3_landscape'
+  | 'letter_portrait'
+  | 'letter_landscape'
+  | 'phone_story'
+  | 'square';
+
+export type ExportFormat = 'pdf' | 'docx' | 'png' | 'jpg' | 'html' | 'rtf';
+
+export type FontFamily = 
+  | 'tajawal' 
+  | 'cairo' 
+  | 'amiri' 
+  | 'noto_naskh' 
+  | 'ibm_plex' 
+  | 'arial' 
+  | 'times_new_roman' 
+  | 'calibri' 
+  | 'traditional_arabic';
+
+export type UserRole = 'owner' | 'admin' | 'teacher';
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  fullName: string;
+  role: UserRole;
+  phone?: string;
+  academy?: string;
+  directorate?: string;
+  schoolName?: string;
+  defaultSubject?: string;
+  digitalSignatureUrl?: string;
+  schoolLogoUrl?: string;
+  createdAt: number;
+  lastLoginAt: number;
+  status: 'active' | 'disabled';
+}
+
+export interface LessonStage {
+  id: string;
+  stageName: string;            // مرحلة الدرس / الوضعية التعلمية
+  duration: string;             // المدة
+  teacherActivities: string;    // أنشطة الأستاذ(ة)
+  studentActivities: string;    // أنشطة المتعلمين
+  evaluationMode: string;       // أشكال التقويم والتشخيص
+  didacticTools: string;        // الوسائل والدعامات
+}
+
+export interface RuleItem {
+  id: string;
+  category: string;
+  ruleText: string;
+}
+
+export interface ExerciseItem {
+  id: string;
+  title: string;
+  points: string;
+  description: string;
+  subQuestions: string[];
+}
+
+export interface StudentScoreItem {
+  id: string;
+  studentNumber: number;
+  studentName: string;
+  c1: string;
+  c2: string;
+  c3: string;
+  c4: string;
+  total: string;
+  appreciation: string;
+}
+
+export interface RemediationActivity {
+  id: string;
+  difficulty: string;          // صعوبة التعلم المرصودة
+  remediationObjective: string; // الهدف من المعالجة
+  targetedStudents: string;    // الفئة المستهدفة / المجموعات
+  activityDescription: string; // صيغة النشاط وإجراءات الدعم
+  evaluationMetric: string;    // مؤشر التحقق والتقويم
+}
+
+// Gradebook Specific Types (سجل النقط والتقويم)
+export interface GradebookMiddleHighRow {
+  id: string;
+  studentNumber: number;
+  studentName: string;
+  exam1: number | string;
+  exam2: number | string;
+  exam3: number | string;
+  exam4: number | string;
+  activities: number | string;
+  notes: string;
+  calculatedAverage?: number;
+  rank?: number;
+  appreciation?: string;
+}
+
+export interface PrimaryCompetencyIndicator {
+  id: string;
+  componentName: string;       // اسم المكون (مثال: القراءة، التراكيب، الحساب الذهني)
+  indicatorDescription: string;// مؤشر التحقق
+  maxScore?: number;
+}
+
+export interface PrimaryEvaluationStudentRow {
+  id: string;
+  studentNumber: number;
+  studentName: string;
+  ratings: Record<string, 'excellent' | 'veryGood' | 'good' | 'inProgress' | 'notAcquired' | number>;
+  generalAppreciation: string;
+  notes: string;
+}
+
+export interface GradebookCoefficients {
+  exam1: number;
+  exam2: number;
+  exam3: number;
+  exam4: number;
+  activities: number;
+}
+
+export interface DocumentData {
+  id: string;
+  title: string;
+  documentType: DocumentType;
+  level: EducationLevel;
+  grade: string;
+  subjectCategory: SubjectCategory;
+  subjectId: string;
+  subjectNameAr: string;
+  subjectNameFr?: string;
+  language: DocumentLanguage;
+  
+  // Administrative info (Moroccan official header data)
+  kingdomHeader: string;
+  ministryHeader: string;
+  academy: string;
+  directorate: string;
+  schoolName: string;
+  teacherName: string;
+  classGroup: string;
+  academicYear: string;
+  unitOrModule: string;
+  lessonTitle: string;
+  duration: string;
+  documentDate: string;
+  
+  // Customization & Visual Styling
+  themeColor: ThemeColor;
+  fontFamily?: FontFamily;
+  fontSize?: 'sm' | 'base' | 'lg';
+  marginSize?: 'tight' | 'normal' | 'generous';
+  borderStyle?: 'official' | 'zellij' | 'modern' | 'minimal';
+  showOfficialHeader: boolean;
+  showOfficialEmblem?: boolean;
+  showSchoolLogo: boolean;
+  customLogoUrl?: string;
+  customSchoolLogoUrl?: string;
+  showTeacherSignature: boolean;
+  showInspectorSignature: boolean;
+  showFooterInfo: boolean;
+  showPageNumbers: boolean;
+  pageFormat: PageFormat;
+  watermarkText?: string;
+  
+  // Content specific to Fiche Pédagogique (جذاذة تربوية)
+  generalCompetences?: string[];
+  specificObjectives?: string[];
+  didacticResources?: string[];
+  prerequisites?: string[];
+  lessonStages?: LessonStage[];
+  diagnosticEval?: string;
+  formativeEval?: string;
+  summativeEval?: string;
+  supportActivities?: string;
+  teacherNotes?: string;
+
+  // Content specific to EPS (التربية البدنية والرياضية)
+  epsWarmUp?: {
+    general: string;
+    specific: string;
+    duration: string;
+  };
+  epsMotorSkills?: string[];
+  epsSafetyGuidelines?: string[];
+  epsCollectiveActivity?: string;
+  epsPhysicalAssessment?: string;
+  epsCompetitionRules?: string;
+
+  // Content specific to Charte de classe (ميثاق القسم)
+  charteIntroduction?: string;
+  charteRules?: RuleItem[];
+  charteTeacherCommitment?: string;
+  charteStudentRepName?: string;
+
+  // Content specific to Contrôle / Devoir (فروض واختبارات)
+  examInstructions?: string[];
+  exercises?: ExerciseItem[];
+  examTotalPoints?: string;
+  gradingCriteria?: string[];
+
+  // Content specific to Évaluation et Soutien (أنشطة التقويم والدعم)
+  identifiedGaps?: string[];
+  remediationPlan?: RemediationActivity[];
+  supportTimeline?: string;
+
+  // Content specific to Grille de notation (شبكة التنقيط والتفريغ)
+  evaluationCriteriaNames?: string[];
+  scoreRows?: StudentScoreItem[];
+
+  // Content specific to Registre des Notes (سجل النقط والتقويم الشامل)
+  gradebookType?: 'middle_high' | 'primary';
+  gradebookCoefficients?: GradebookCoefficients;
+  gradebookMiddleHighRows?: GradebookMiddleHighRow[];
+  primaryIndicators?: PrimaryCompetencyIndicator[];
+  primaryStudentRows?: PrimaryEvaluationStudentRow[];
+  gradebookViewMode?: 'numeric' | 'appreciation' | 'both';
+
+  // Content specific to Rapport de Conseil (تقارير مجالس الأقسام)
+  meetingType?: string;
+  meetingDate?: string;
+  attendeesCount?: string;
+  generalResultsOverview?: string;
+  strengthsObserved?: string[];
+  weaknessesObserved?: string[];
+  councilDecisions?: string[];
+
+  // Content specific to Attestation / Affiche (شواهد وملصقات)
+  attestationRecipient?: string;
+  attestationReason?: string;
+  attestationAppreciation?: string;
+  attestationDate?: string;
+
+  createdAt: number;
+  updatedAt: number;
+  userId?: string;
+  isPublicTemplate?: boolean;
+}
+
+// Audit Log for Owner Dashboard
+export interface AuditLogItem {
+  id: string;
+  timestamp: number;
+  actionType: 'user_registered' | 'role_changed' | 'user_disabled' | 'user_enabled' | 'template_published' | 'template_deleted' | 'settings_updated';
+  performedBy: string;
+  targetUserOrItem: string;
+  details: string;
+}
+
+// Broadcast Announcement
+export interface BroadcastAnnouncement {
+  id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'warning' | 'success';
+  active: boolean;
+  createdAt: number;
+}
