@@ -312,6 +312,20 @@ export const DOCUMENT_TYPE_LABELS = {
     color: 'emerald',
     icon: 'Layers',
   },
+  resume_cours: {
+    ar: 'ملخص درس وخطة تعلمية',
+    fr: 'Résumé & Plan de cours',
+    badge: 'تلخيص واستثمار',
+    color: 'emerald',
+    icon: 'BookOpen',
+  },
+  fiche_technique: {
+    ar: 'بطاقة تقنية وتجريبية',
+    fr: 'Fiche technique & expérimentale',
+    badge: 'تجارب ومختبر',
+    color: 'royal',
+    icon: 'Sparkles',
+  },
   rapport_conseil: {
     ar: 'تقرير مجلس القسم / اجتماع الأولياء',
     fr: 'Rapport du conseil de classe',
@@ -325,6 +339,13 @@ export const DOCUMENT_TYPE_LABELS = {
     badge: 'تصميم فخم للطباعة',
     color: 'gold',
     icon: 'Award',
+  },
+  registre_notes: {
+    ar: 'سجل النقط والتقويم الشامل',
+    fr: 'Registre des notes & Évaluation',
+    badge: 'تتبع المستويات والمعايير',
+    color: 'emerald',
+    icon: 'TableProperties',
   },
 };
 

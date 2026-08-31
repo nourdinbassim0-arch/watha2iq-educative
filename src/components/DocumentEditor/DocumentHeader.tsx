@@ -45,79 +45,79 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
   return (
     <div className="border-b-2 border-[#065F46] pb-3 mb-4 select-text" dir={isRtl ? 'rtl' : 'ltr'}>
       
-      {/* 3-Column Official Moroccan Header Structure */}
-      <div className="grid grid-cols-12 gap-2 items-center text-xs">
+      {/* 3-Column Official Moroccan Header Structure with Anti-Overflow Protection */}
+      <div className="grid grid-cols-12 gap-2 items-center text-xs overflow-hidden">
         
         {/* Column 1: Ministry / Academy / Directorate / School */}
-        <div className={`col-span-4 ${isRtl ? 'text-right' : 'text-left'} space-y-0.5`}>
-          <div className="font-bold text-[11px] text-[#1F2937] leading-tight">
+        <div className={`col-span-4 ${isRtl ? 'text-right' : 'text-left'} space-y-0.5 min-w-0`}>
+          <div className="font-bold text-[11px] text-[#1F2937] leading-tight break-words">
             {isEditable ? (
               <input
                 type="text"
                 value={documentData.kingdomHeader}
                 onChange={(e) => onUpdateHeaderField?.('kingdomHeader', e.target.value)}
-                className="w-full bg-transparent border-b border-dashed border-[#D1D5DB] focus:border-[#065F46] outline-hidden font-bold"
+                className="w-full bg-transparent border-b border-dashed border-[#D1D5DB] focus:border-[#065F46] outline-hidden font-bold break-words"
               />
             ) : (
-              documentData.kingdomHeader
+              <span className="block break-words">{documentData.kingdomHeader}</span>
             )}
           </div>
 
-          <div className="font-bold text-[10px] text-[#374151] leading-tight">
+          <div className="font-bold text-[10px] text-[#374151] leading-tight break-words">
             {isEditable ? (
               <input
                 type="text"
                 value={documentData.ministryHeader}
                 onChange={(e) => onUpdateHeaderField?.('ministryHeader', e.target.value)}
-                className="w-full bg-transparent border-b border-dashed border-[#D1D5DB] focus:border-[#065F46] outline-hidden"
+                className="w-full bg-transparent border-b border-dashed border-[#D1D5DB] focus:border-[#065F46] outline-hidden break-words"
               />
             ) : (
-              documentData.ministryHeader
+              <span className="block break-words">{documentData.ministryHeader}</span>
             )}
           </div>
 
-          <div className="text-[10px] text-[#4B5563] font-medium">
+          <div className="text-[10px] text-[#4B5563] font-medium leading-snug break-words">
             {isEditable ? (
               <input
                 type="text"
                 value={documentData.academy}
                 onChange={(e) => onUpdateHeaderField?.('academy', e.target.value)}
-                className="w-full bg-transparent border-b border-dashed border-[#D1D5DB] focus:border-[#065F46] outline-hidden"
+                className="w-full bg-transparent border-b border-dashed border-[#D1D5DB] focus:border-[#065F46] outline-hidden break-words"
               />
             ) : (
-              documentData.academy
+              <span className="block break-words">{documentData.academy}</span>
             )}
           </div>
 
-          <div className="text-[10px] text-[#6B7280]">
+          <div className="text-[10px] text-[#6B7280] leading-snug break-words">
             {isEditable ? (
               <input
                 type="text"
                 value={documentData.directorate}
                 onChange={(e) => onUpdateHeaderField?.('directorate', e.target.value)}
-                className="w-full bg-transparent border-b border-dashed border-[#D1D5DB] focus:border-[#065F46] outline-hidden"
+                className="w-full bg-transparent border-b border-dashed border-[#D1D5DB] focus:border-[#065F46] outline-hidden break-words"
               />
             ) : (
-              documentData.directorate
+              <span className="block break-words">{documentData.directorate}</span>
             )}
           </div>
 
-          <div className="text-[11px] font-bold text-[#065F46] pt-0.5">
+          <div className="text-[11px] font-bold text-[#065F46] pt-0.5 leading-snug break-words">
             {isEditable ? (
               <input
                 type="text"
                 value={documentData.schoolName}
                 onChange={(e) => onUpdateHeaderField?.('schoolName', e.target.value)}
-                className="w-full bg-transparent border-b border-dashed border-[#D1D5DB] focus:border-[#065F46] outline-hidden font-bold text-[#065F46]"
+                className="w-full bg-transparent border-b border-dashed border-[#D1D5DB] focus:border-[#065F46] outline-hidden font-bold text-[#065F46] break-words"
               />
             ) : (
-              documentData.schoolName
+              <span className="block break-words">{documentData.schoolName}</span>
             )}
           </div>
         </div>
 
         {/* Column 2: Center - Official Moroccan Kingdom Emblem */}
-        <div className="col-span-4 flex flex-col items-center justify-center text-center">
+        <div className="col-span-4 flex flex-col items-center justify-center text-center shrink-0">
           {showEmblem ? (
             <MoroccanOfficialEmblem
               size="md"
@@ -134,7 +134,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
         </div>
 
         {/* Column 3: School Logo & Teacher / Class / Year Meta */}
-        <div className={`col-span-4 ${isRtl ? 'text-left' : 'text-right'} space-y-1 text-[10px]`}>
+        <div className={`col-span-4 ${isRtl ? 'text-left' : 'text-right'} space-y-1 text-[10px] min-w-0`}>
           
           {/* Institution School Custom Logo on opposite corner */}
           {showLogo && (
@@ -144,7 +144,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                   <img
                     src={logoUrl}
                     alt="School Logo"
-                    className="h-14 w-auto max-w-[100px] object-contain rounded-md border border-[#E5E7EB] bg-white p-0.5 shadow-2xs"
+                    className="h-12 w-auto max-w-[90px] object-contain rounded-md border border-[#E5E7EB] bg-white p-0.5 shadow-2xs"
                   />
                   {isEditable && (
                     <button
@@ -178,7 +178,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
             className="hidden"
           />
 
-          <div className="font-bold text-[#1F2937]">
+          <div className="font-bold text-[#1F2937] leading-tight break-words">
             <span className="text-[#6B7280] font-normal">{isRtl ? 'السنة الدراسية: ' : isFr ? 'Année scolaire : ' : 'Academic Year: '}</span>
             {isEditable ? (
               <input
@@ -188,39 +188,39 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                 className="bg-transparent border-b border-dashed border-[#D1D5DB] focus:border-[#065F46] outline-hidden font-bold w-24 text-center"
               />
             ) : (
-              documentData.academicYear
+              <span>{documentData.academicYear}</span>
             )}
           </div>
 
-          <div className="font-bold text-[#1F2937]">
+          <div className="font-bold text-[#1F2937] leading-tight break-words">
             <span className="text-[#6B7280] font-normal">{isRtl ? 'الأستاذ(ة): ' : isFr ? 'Enseignant(e) : ' : 'Teacher: '}</span>
             {isEditable ? (
               <input
                 type="text"
                 value={documentData.teacherName}
                 onChange={(e) => onUpdateHeaderField?.('teacherName', e.target.value)}
-                className="bg-transparent border-b border-dashed border-[#D1D5DB] focus:border-[#065F46] outline-hidden font-bold"
+                className="bg-transparent border-b border-dashed border-[#D1D5DB] focus:border-[#065F46] outline-hidden font-bold break-words"
               />
             ) : (
-              documentData.teacherName
+              <span className="break-words">{documentData.teacherName}</span>
             )}
           </div>
 
-          <div className="text-[#4B5563]">
+          <div className="text-[#4B5563] leading-tight break-words">
             <span className="text-[#6B7280] font-normal">{isRtl ? 'المستوى / الفوج: ' : isFr ? 'Niveau / Classe : ' : 'Grade / Group: '}</span>
             {isEditable ? (
               <input
                 type="text"
                 value={documentData.classGroup || documentData.grade}
                 onChange={(e) => onUpdateHeaderField?.('classGroup', e.target.value)}
-                className="bg-transparent border-b border-dashed border-[#D1D5DB] focus:border-[#065F46] outline-hidden font-bold"
+                className="bg-transparent border-b border-dashed border-[#D1D5DB] focus:border-[#065F46] outline-hidden font-bold break-words"
               />
             ) : (
-              documentData.classGroup || documentData.grade
+              <span className="break-words">{documentData.classGroup || documentData.grade}</span>
             )}
           </div>
 
-          <div className="text-[#6B7280]">
+          <div className="text-[#6B7280] leading-tight break-words">
             <span className="text-[#6B7280] font-normal">{isRtl ? 'التاريخ: ' : isFr ? 'Date : ' : 'Date: '}</span>
             {isEditable ? (
               <input
@@ -230,7 +230,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                 className="bg-transparent border-b border-dashed border-[#D1D5DB] focus:border-[#065F46] outline-hidden font-mono"
               />
             ) : (
-              documentData.documentDate
+              <span>{documentData.documentDate}</span>
             )}
           </div>
         </div>

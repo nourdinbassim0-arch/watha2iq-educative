@@ -9,6 +9,7 @@ import {
   PageFormat 
 } from '../../types';
 import { DocumentHeader } from './DocumentHeader';
+import { TextSelectionFloatingToolbar } from './TextSelectionFloatingToolbar';
 import { 
   Plus, 
   Trash2, 
@@ -21,7 +22,16 @@ import {
   UserCheck, 
   ShieldAlert, 
   Activity,
-  HeartHandshake
+  HeartHandshake,
+  ArrowUp,
+  ArrowDown,
+  Calculator,
+  BookOpen,
+  FlaskConical,
+  Check,
+  AlertTriangle,
+  Lightbulb,
+  FileText
 } from 'lucide-react';
 import { getDimensionInfo } from '../../utils/pageDimensions';
 
@@ -43,6 +53,7 @@ export const DocumentPreviewCanvas: React.FC<DocumentPreviewCanvasProps> = ({
   const theme = documentData.themeColor || 'emerald';
   const pageFormat = documentData.pageFormat || 'a4_portrait';
   const dimInfo = getDimensionInfo(pageFormat);
+  const design = documentData.templateDesign || 'official';
 
   // Font family mapping
   const getFontFamilyCSS = () => {
@@ -163,6 +174,16 @@ export const DocumentPreviewCanvas: React.FC<DocumentPreviewCanvasProps> = ({
     onUpdateField('lessonStages', updated);
   };
 
+  const handleMoveStage = (index: number, direction: 'up' | 'down') => {
+    const list = [...(documentData.lessonStages || [])];
+    const targetIdx = direction === 'up' ? index - 1 : index + 1;
+    if (targetIdx < 0 || targetIdx >= list.length) return;
+    const temp = list[index];
+    list[index] = list[targetIdx];
+    list[targetIdx] = temp;
+    onUpdateField('lessonStages', list);
+  };
+
   // Helper for Charte Rules
   const handleAddCharteRule = () => {
     const newRule: RuleItem = {
@@ -190,7 +211,7 @@ export const DocumentPreviewCanvas: React.FC<DocumentPreviewCanvasProps> = ({
     const newEx: ExerciseItem = {
       id: `ex-${Date.now()}`,
       title: isFr ? `Exercice ${count} : Application (4 points)` : `التمرين ${count}: تطبيق ومسألة (4 نقاط)`,
-      points: '4 ن',
+      points: '4',
       description: isFr ? 'Énoncé de l\'exercice...' : 'نص التمرين والمعطيات...',
       subQuestions: [
         isFr ? '1. Première question...' : '1. السؤال الأول...',
@@ -208,6 +229,43 @@ export const DocumentPreviewCanvas: React.FC<DocumentPreviewCanvasProps> = ({
 
   const handleDeleteExercise = (index: number) => {
     const updated = (documentData.exercises || []).filter((_, i) => i !== index);
+    onUpdateField('exercises', updated);
+  };
+
+  const handleMoveExercise = (index: number, direction: 'up' | 'down') => {
+    const list = [...(documentData.exercises || [])];
+    const targetIdx = direction === 'up' ? index - 1 : index + 1;
+    if (targetIdx < 0 || targetIdx >= list.length) return;
+    const temp = list[index];
+    list[index] = list[targetIdx];
+    list[targetIdx] = temp;
+    onUpdateField('exercises', list);
+  };
+
+  const handleAddSubQuestion = (exIndex: number) => {
+    const updated = [...(documentData.exercises || [])];
+    const ex = updated[exIndex];
+    const subQ = ex.subQuestions || [];
+    const count = subQ.length + 1;
+    const newQ = isFr ? `${count}. Nouvelle sous-question...` : `${count}. سؤال فرعي جديد...`;
+    updated[exIndex] = { ...ex, subQuestions: [...subQ, newQ] };
+    onUpdateField('exercises', updated);
+  };
+
+  const handleUpdateSubQuestion = (exIndex: number, qIndex: number, text: string) => {
+    const updated = [...(documentData.exercises || [])];
+    const ex = updated[exIndex];
+    const subQ = [...(ex.subQuestions || [])];
+    subQ[qIndex] = text;
+    updated[exIndex] = { ...ex, subQuestions: subQ };
+    onUpdateField('exercises', updated);
+  };
+
+  const handleDeleteSubQuestion = (exIndex: number, qIndex: number) => {
+    const updated = [...(documentData.exercises || [])];
+    const ex = updated[exIndex];
+    const subQ = (ex.subQuestions || []).filter((_, i) => i !== qIndex);
+    updated[exIndex] = { ...ex, subQuestions: subQ };
     onUpdateField('exercises', updated);
   };
 
@@ -250,9 +308,28 @@ export const DocumentPreviewCanvas: React.FC<DocumentPreviewCanvasProps> = ({
     onUpdateField('scoreRows', updated);
   };
 
+  // Calculate total exam score sum
+  const calculateTotalExamPoints = () => {
+    const exercises = documentData.exercises || [];
+    let sum = 0;
+    for (const ex of exercises) {
+      const p = parseFloat(ex.points?.replace(/[^0-9.]/g, '') || '0');
+      sum += isNaN(p) ? 0 : p;
+    }
+    return sum;
+  };
+
+  // Dynamic Scale & Line Spacing
+  const fontScalePercent = documentData.customFontScale || 100;
+  const lineSpacingValue = documentData.lineSpacing || '1.15';
+  const textAlignValue = documentData.textAlign || (isRtl ? 'right' : 'left');
+
   return (
-    <div className="flex justify-center p-2 sm:p-6 overflow-x-auto bg-slate-200/70 min-h-[85vh]">
+    <div className="flex justify-center p-2 sm:p-6 overflow-x-auto bg-slate-200/70 min-h-[85vh] relative">
       
+      {/* Floating Rich Text Selection Formatting Toolbar */}
+      <TextSelectionFloatingToolbar containerId="document-render-canvas" />
+
       {/* Zoom transform container */}
       <div 
         style={{ transform: `scale(${zoom})`, transformOrigin: 'top center' }}
@@ -262,16 +339,34 @@ export const DocumentPreviewCanvas: React.FC<DocumentPreviewCanvasProps> = ({
         {/* Render Canvas matching exact Paper dimensions */}
         <div
           id="document-render-canvas"
-          className="bg-white text-slate-900 p-8 sm:p-12 doc-page-shadow rounded-xs border border-slate-300 relative select-text transition-all print:p-0 print:border-none print:shadow-none"
+          className={`bg-white text-slate-900 p-8 sm:p-12 doc-page-shadow relative select-text transition-all print:p-0 print:border-none print:shadow-none ${
+            design === 'modern' ? 'rounded-3xl border-2 border-slate-200 shadow-lg' :
+            design === 'minimal' ? 'border border-slate-300 shadow-none' :
+            design === 'cards' ? 'rounded-2xl border border-slate-300 bg-slate-50/30' :
+            design === 'formal_bordered' ? 'rounded-none border-8 border-double border-emerald-900 p-10 ring-1 ring-amber-700/60 shadow-md' :
+            'rounded-xs border border-slate-300'
+          }`}
           style={{
             width: dimInfo.cssWidth,
             minHeight: dimInfo.cssMinHeight,
             direction: isRtl ? 'rtl' : 'ltr',
-            textAlign: isRtl ? 'right' : 'left',
+            textAlign: textAlignValue,
             fontFamily: getFontFamilyCSS(),
+            fontSize: `${fontScalePercent}%`,
+            lineHeight: lineSpacingValue,
           }}
         >
           
+          {/* Decorative Corner Badges for Formal Bordered Design */}
+          {design === 'formal_bordered' && (
+            <>
+              <div className="absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2 border-amber-700"></div>
+              <div className="absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 border-amber-700"></div>
+              <div className="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-amber-700"></div>
+              <div className="absolute bottom-2 left-2 w-4 h-4 border-b-2 border-l-2 border-amber-700"></div>
+            </>
+          )}
+
           {/* Document Header (Ministry Hierarchy & Seal) */}
           <DocumentHeader
             documentData={documentData}
@@ -289,10 +384,10 @@ export const DocumentPreviewCanvas: React.FC<DocumentPreviewCanvasProps> = ({
                 type="text"
                 value={documentData.title}
                 onChange={(e) => onUpdateField('title', e.target.value)}
-                className="w-full bg-transparent text-center font-black text-xl sm:text-2xl text-slate-900 border-b border-dashed border-slate-400 focus:border-emerald-700 outline-hidden tracking-tight"
+                className="w-full bg-transparent text-center font-black text-xl sm:text-2xl text-slate-900 border-b border-dashed border-slate-400 focus:border-emerald-700 outline-hidden tracking-tight break-words"
               />
             ) : (
-              <h2 className="font-black text-xl sm:text-2xl text-slate-900 tracking-tight">
+              <h2 className="font-black text-xl sm:text-2xl text-slate-900 tracking-tight break-words">
                 {documentData.title}
               </h2>
             )}
@@ -768,33 +863,76 @@ export const DocumentPreviewCanvas: React.FC<DocumentPreviewCanvasProps> = ({
                 </div>
               </div>
 
-              {/* Instructions Callout */}
-              <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-900">
-                <span className="font-bold">{isFr ? 'Consignes importantes : ' : 'توجيهات وتعليمات: '}</span>
-                <span>{(documentData.examInstructions || []).join(' • ')}</span>
+              {/* Instructions Callout & Live Score Barème Summary */}
+              <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-900">
+                <div className="flex-1">
+                  <span className="font-bold">{isFr ? 'Consignes importantes : ' : 'توجيهات وتعليمات: '}</span>
+                  <span>{(documentData.examInstructions || []).join(' • ')}</span>
+                </div>
+                <div className="flex items-center gap-1.5 bg-amber-200/80 px-2.5 py-1 rounded-md font-bold text-amber-950 text-xs shrink-0">
+                  <Calculator className="w-3.5 h-3.5 text-amber-800" />
+                  <span>مجموع سلم التنقيط: {calculateTotalExamPoints()} / 20 ن</span>
+                </div>
               </div>
 
               {/* Exercises List */}
               <div className="space-y-4">
                 {(documentData.exercises || []).map((ex, idx) => (
-                  <div key={ex.id || idx} className="border border-slate-300 rounded-xl p-4 bg-white shadow-2xs space-y-2.5">
+                  <div key={ex.id || idx} className="border border-slate-300 rounded-xl p-4 bg-white shadow-2xs space-y-2.5 group">
                     
-                    {/* Exercise Title and Points */}
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                      {isEditable ? (
-                        <input
-                          type="text"
-                          value={ex.title}
-                          onChange={(e) => handleUpdateExercise(idx, 'title', e.target.value)}
-                          className="font-black text-sm text-slate-900 bg-transparent border-b border-dashed border-slate-300 w-3/4"
-                        />
-                      ) : (
-                        <h4 className="font-black text-sm text-slate-900">{ex.title}</h4>
-                      )}
+                    {/* Exercise Header, Points & Controls */}
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-200 gap-2">
+                      <div className="flex items-center gap-2 flex-1">
+                        {isEditable && (
+                          <div className="flex items-center gap-0.5 no-print">
+                            <button
+                              onClick={() => handleMoveExercise(idx, 'up')}
+                              disabled={idx === 0}
+                              title="تحريك لأعلى"
+                              className="p-1 rounded-md text-slate-400 hover:text-slate-700 disabled:opacity-20"
+                            >
+                              <ArrowUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleMoveExercise(idx, 'down')}
+                              disabled={idx === (documentData.exercises || []).length - 1}
+                              title="تحريك لأسفل"
+                              className="p-1 rounded-md text-slate-400 hover:text-slate-700 disabled:opacity-20"
+                            >
+                              <ArrowDown className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
 
-                      <span className="bg-rose-100 text-rose-900 font-bold px-2.5 py-0.5 rounded-full text-xs">
-                        {ex.points}
-                      </span>
+                        {isEditable ? (
+                          <input
+                            type="text"
+                            value={ex.title}
+                            onChange={(e) => handleUpdateExercise(idx, 'title', e.target.value)}
+                            className="font-black text-sm text-slate-900 bg-transparent border-b border-dashed border-slate-300 w-full"
+                          />
+                        ) : (
+                          <h4 className="font-black text-sm text-slate-900">{ex.title}</h4>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {isEditable ? (
+                          <div className="flex items-center gap-1 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-lg">
+                            <input
+                              type="text"
+                              value={ex.points}
+                              onChange={(e) => handleUpdateExercise(idx, 'points', e.target.value)}
+                              className="w-10 bg-transparent text-center font-bold text-rose-900 text-xs outline-hidden"
+                            />
+                            <span className="text-[10px] font-bold text-rose-800">نقط</span>
+                          </div>
+                        ) : (
+                          <span className="bg-rose-100 text-rose-900 font-bold px-2.5 py-0.5 rounded-full text-xs">
+                            {ex.points} ن
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Exercise Text/Description */}
@@ -811,25 +949,44 @@ export const DocumentPreviewCanvas: React.FC<DocumentPreviewCanvasProps> = ({
 
                     {/* Sub Questions */}
                     <div className="space-y-2 pt-1">
-                      {ex.subQuestions.map((q, qIdx) => (
-                        <div key={qIdx} className="text-xs text-slate-800 pr-2 flex items-start justify-between">
+                      {(ex.subQuestions || []).map((q, qIdx) => (
+                        <div key={qIdx} className="text-xs text-slate-800 pr-2 flex items-center justify-between gap-2">
                           {isEditable ? (
                             <input
                               type="text"
                               value={q}
-                              onChange={(e) => {
-                                const updatedSub = [...ex.subQuestions];
-                                updatedSub[qIdx] = e.target.value;
-                                handleUpdateExercise(idx, 'subQuestions', updatedSub);
-                              }}
+                              onChange={(e) => handleUpdateSubQuestion(idx, qIdx, e.target.value)}
                               className="w-full bg-transparent border-b border-dashed border-slate-200 text-xs"
                             />
                           ) : (
                             <span>{q}</span>
                           )}
+
+                          {isEditable && (
+                            <button
+                              onClick={() => handleDeleteSubQuestion(idx, qIdx)}
+                              title="حذف هذا السؤال الفرعي"
+                              className="text-slate-400 hover:text-rose-600 no-print"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
+
+                    {/* Add sub-question button */}
+                    {isEditable && (
+                      <div className="pt-1 no-print">
+                        <button
+                          onClick={() => handleAddSubQuestion(idx)}
+                          className="text-[11px] text-emerald-700 hover:text-emerald-900 font-bold inline-flex items-center gap-1"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>إضافة سؤال فرعي للتمرين</span>
+                        </button>
+                      </div>
+                    )}
 
                     {/* Answer space indicator */}
                     <div className="h-12 border-b border-dotted border-slate-300 bg-slate-50/40 rounded-sm"></div>
@@ -866,7 +1023,141 @@ export const DocumentPreviewCanvas: React.FC<DocumentPreviewCanvasProps> = ({
           )}
 
           {/* ========================================================================= */}
-          {/* DOCUMENT TYPE 4: GRILLE DE NOTATION (شبكات التنقيط والتفريغ) */}
+          {/* DOCUMENT TYPE 4: RESUME DE COURS / SYNTHESE (ملخص درس وخطة تعلمية) */}
+          {/* ========================================================================= */}
+          {documentData.documentType === 'resume_cours' && (
+            <div className="space-y-5 text-xs">
+              
+              {/* Key Concept Header Box */}
+              <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-300 space-y-2">
+                <div className="flex items-center gap-2 text-emerald-950 font-bold text-sm">
+                  <Lightbulb className="w-4 h-4 text-emerald-700" />
+                  <span>المحاور والركائز الأساسية للدرس:</span>
+                </div>
+                <p className="text-slate-700 leading-relaxed text-xs">
+                  {documentData.lessonPlanOrSteps || 'يقدم هذا الملخص خلاصة شاملة وميسرة للمفاهيم الأساسية، التعاريف الدقيقة، والقواعد الرياضية والديداكتيكية المقررة وفق المنهاج الوزاري.'}
+                </p>
+              </div>
+
+              {/* Resume Sections */}
+              <div className="space-y-4">
+                {(documentData.resumeSections && documentData.resumeSections.length > 0 ? documentData.resumeSections : [
+                  {
+                    id: 'sec-1',
+                    sectionTitle: 'المحور الأول: المفاهيم والتأطير النظري',
+                    keyPoints: ['التعريف الدقيق والاصطلاحي للمفهوم.', 'الشروط والضوابط المنهجية لتطبيق القاعدة.', 'أمثلة توضيحية من الواقع المعيش للمتعلم.'],
+                    summaryText: 'يشكل هذا المحور القاعدة الأساسية التي تبنى عليها باقي التعلمات اللاحقة.',
+                  },
+                  {
+                    id: 'sec-2',
+                    sectionTitle: 'المحور الثاني: القواعد والتطبيقات النموذجية',
+                    keyPoints: ['الخاصيات الأساسية المبرهن عليها.', 'الاستدلال المنطقي وطريقة توظيف المعطيات.', 'النماذج التطبيقية والمسائل الإدماجية.'],
+                    summaryText: 'تطبيق مباشر لقواعد الدرس مع إبراز التقنيات المنهجية لحل المسائل.',
+                  },
+                  {
+                    id: 'sec-3',
+                    sectionTitle: 'المحور الثالث: خلاصة تركيبية واستثمار التعلمات',
+                    keyPoints: ['خريطة ذهنية / جدول تركيبي للدرس.', 'الأخطاء الشائعة وسبل تجنبها أثناء الإنجاز.', 'تمارين تقويمية ذاتية للتثبيت والتأكد من التمكن.'],
+                    summaryText: 'الاستثمار الفعلي للكفايات في معالجة وضعيات جديدة وممتدة.',
+                  }
+                ]).map((sec, sIdx) => (
+                  <div key={sec.id || sIdx} className="border border-slate-300 rounded-xl p-4 bg-white shadow-2xs space-y-2">
+                    <div className="font-bold text-sm text-slate-900 border-b border-slate-200 pb-1.5 flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-emerald-800" />
+                      <span>{sec.sectionTitle}</span>
+                    </div>
+
+                    <ul className="space-y-1.5 list-disc list-inside text-slate-700 pr-2">
+                      {sec.keyPoints.map((pt, pIdx) => (
+                        <li key={pIdx} className="leading-relaxed">{pt}</li>
+                      ))}
+                    </ul>
+
+                    {sec.summaryText && (
+                      <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 text-[11px] font-medium mt-2">
+                        <span className="font-bold text-emerald-900">تركيب: </span>
+                        <span>{sec.summaryText}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* DOCUMENT TYPE 5: FICHE TECHNIQUE / MANIPULATION (بطاقة تقنية وتجريبية) */}
+          {/* ========================================================================= */}
+          {documentData.documentType === 'fiche_technique' && (
+            <div className="space-y-5 text-xs">
+              
+              {/* Header Grid: Objectives, Materials, Safety */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="p-3.5 rounded-xl border border-slate-300 bg-slate-50 space-y-1.5">
+                  <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                    <FlaskConical className="w-4 h-4 text-blue-700" />
+                    <span>الهدف التجريبي:</span>
+                  </div>
+                  <p className="text-[11px] text-slate-700 leading-relaxed">
+                    التحقق التجريبي من القوانين الفيزيائية/الكيميائية واكتساب مهارات المناولة والقياس المخبري.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-xl border border-slate-300 bg-slate-50 space-y-1.5">
+                  <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-emerald-700" />
+                    <span>العتاد والمواد المطلوبة:</span>
+                  </div>
+                  <p className="text-[11px] text-slate-700 leading-relaxed">
+                    أجهزة القياس (فولطمتر، أمبيرمتر)، مولد كهربائي، أسلاك توصيل، قواطع ومقاومات متغيرة.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/70 space-y-1.5">
+                  <div className="font-bold text-rose-950 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-rose-700" />
+                    <span>احتياطات السلامة:</span>
+                  </div>
+                  <p className="text-[11px] text-rose-900 leading-relaxed">
+                    ارتداء الوزرة، التأكد من فصل التيار قبل تعديل التركيب، وتفادي تجاوز القيم الاسمية.
+                  </p>
+                </div>
+              </div>
+
+              {/* Protocol Table */}
+              <div className="border border-slate-300 rounded-xl overflow-hidden shadow-2xs">
+                <table className="w-full text-right text-xs border-collapse">
+                  <thead>
+                    <tr className={`${ts.tableHeaderBg} text-[11px] font-bold`}>
+                      <th className="p-2 border border-slate-600 w-16 text-center">المرحلة</th>
+                      <th className="p-2 border border-slate-600 w-1/3">البروتوكول التجريبي وطريقة الإنجاز</th>
+                      <th className="p-2 border border-slate-600 w-1/3">الملاحظات والنتائج المسجلة</th>
+                      <th className="p-2 border border-slate-600">الاستنتاج والتفسير العلمي</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    <tr className="bg-white">
+                      <td className="p-2 border border-slate-200 text-center font-bold text-slate-800">1</td>
+                      <td className="p-2 border border-slate-200">إنجاز التركيب التجريبي ومراجعة التوصيلات مع الأستاذ.</td>
+                      <td className="p-2 border border-slate-200">توهج المصباح وتسجيل قيم التيار والتوتر في الجدول.</td>
+                      <td className="p-2 border border-slate-200">تناسب شدة التيار مع فرق التوتر المطبق (قانون أوم).</td>
+                    </tr>
+                    <tr className="bg-slate-50">
+                      <td className="p-2 border border-slate-200 text-center font-bold text-slate-800">2</td>
+                      <td className="p-2 border border-slate-200">تغيير قيم المقاومة وتسجيل تغيرات شدة التيار الكهربائي.</td>
+                      <td className="p-2 border border-slate-200">انخفاض شدة التيار كلما زادت قيمة المقاومة الكهربائية.</td>
+                      <td className="p-2 border border-slate-200">المقاومة تعرقل مرور التيار وتحدد شدته في الدارة.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* DOCUMENT TYPE 6: GRILLE DE NOTATION (شبكات التنقيط والتفريغ) */}
           {/* ========================================================================= */}
           {documentData.documentType === 'grille_notation' && (
             <div className="space-y-4 text-xs">
@@ -1001,7 +1292,7 @@ export const DocumentPreviewCanvas: React.FC<DocumentPreviewCanvasProps> = ({
           )}
 
           {/* ========================================================================= */}
-          {/* DOCUMENT TYPE 5: EVALUATION & SOUTIEN (أنشطة التقويم والدعم) */}
+          {/* DOCUMENT TYPE 7: EVALUATION & SOUTIEN (أنشطة التقويم والدعم) */}
           {/* ========================================================================= */}
           {documentData.documentType === 'evaluation_soutien' && (
             <div className="space-y-5 text-xs">
@@ -1051,7 +1342,7 @@ export const DocumentPreviewCanvas: React.FC<DocumentPreviewCanvasProps> = ({
           )}
 
           {/* ========================================================================= */}
-          {/* DOCUMENT TYPE 6: RAPPORT DU CONSEIL / PV (تقارير المجالس) */}
+          {/* DOCUMENT TYPE 8: RAPPORT DU CONSEIL / PV (تقارير المجالس) */}
           {/* ========================================================================= */}
           {documentData.documentType === 'rapport_conseil' && (
             <div className="space-y-5 text-xs">
@@ -1075,7 +1366,7 @@ export const DocumentPreviewCanvas: React.FC<DocumentPreviewCanvasProps> = ({
           )}
 
           {/* ========================================================================= */}
-          {/* DOCUMENT TYPE 7: ATTESTATION / CERTIFICATE (شهادة تقديرية) */}
+          {/* DOCUMENT TYPE 9: ATTESTATION / CERTIFICATE (شهادة تقديرية) */}
           {/* ========================================================================= */}
           {documentData.documentType === 'attestation_affiche' && (
             <div className="py-8 px-6 border-4 border-double border-amber-600 rounded-3xl bg-gradient-to-b from-amber-50/40 via-white to-amber-50/40 text-center space-y-6">
@@ -1118,29 +1409,78 @@ export const DocumentPreviewCanvas: React.FC<DocumentPreviewCanvasProps> = ({
           {/* DOCUMENT FOOTER & OFFICIAL SIGNATURES */}
           {/* ========================================================================= */}
           <div className="mt-8 pt-4 border-t-2 border-slate-300">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center text-xs">
+            
+            {/* Dynamic / Custom Signatures Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-center text-xs">
               
               {/* Teacher Signature */}
               {documentData.showTeacherSignature && (
-                <div className="p-3 border border-dashed border-slate-300 rounded-xl">
+                <div className="p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50/50 relative group">
+                  {isEditable && (
+                    <button
+                      onClick={() => onUpdateField('showTeacherSignature', false)}
+                      title="إخفاء توقيع الأستاذ"
+                      className="absolute top-1 left-1 p-1 bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-md border border-slate-200 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
                   <div className="font-bold text-slate-800 mb-1">{isFr ? 'Signature de l\'enseignant(e)' : 'توقيع الأستاذ(ة)'}</div>
-                  <div className="text-[10px] text-slate-500 font-medium">{documentData.teacherName}</div>
+                  {isEditable ? (
+                    <input
+                      type="text"
+                      value={documentData.teacherName}
+                      onChange={(e) => onUpdateField('teacherName', e.target.value)}
+                      className="w-full text-center bg-transparent border-b border-dashed border-slate-300 text-[10px] text-slate-700 font-bold outline-hidden"
+                    />
+                  ) : (
+                    <div className="text-[10px] text-slate-600 font-bold">{documentData.teacherName}</div>
+                  )}
                   <div className="h-10"></div>
                 </div>
               )}
 
-              {/* School Administration Seal */}
-              <div className="p-3 border border-dashed border-slate-300 rounded-xl">
-                <div className="font-bold text-slate-800 mb-1">{isFr ? 'Cachet de l\'établissement' : 'خاتم وتأشيرة الإدارة التربوية'}</div>
-                <div className="text-[10px] text-slate-500 font-medium">{documentData.schoolName}</div>
-                <div className="h-10"></div>
-              </div>
+              {/* School Administration Seal & Signature */}
+              {(documentData.showSchoolSignature ?? true) && (
+                <div className="p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50/50 relative group">
+                  {isEditable && (
+                    <button
+                      onClick={() => onUpdateField('showSchoolSignature', false)}
+                      title="إخفاء خاتم وتوقيع الإدارة التربوية"
+                      className="absolute top-1 left-1 p-1 bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-md border border-slate-200 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                  <div className="font-bold text-slate-800 mb-1">{isFr ? 'Cachet de l\'établissement' : 'خاتم وتأشيرة الإدارة التربوية'}</div>
+                  {isEditable ? (
+                    <input
+                      type="text"
+                      value={documentData.schoolName}
+                      onChange={(e) => onUpdateField('schoolName', e.target.value)}
+                      className="w-full text-center bg-transparent border-b border-dashed border-slate-300 text-[10px] text-slate-700 font-bold outline-hidden"
+                    />
+                  ) : (
+                    <div className="text-[10px] text-slate-600 font-bold">{documentData.schoolName}</div>
+                  )}
+                  <div className="h-10"></div>
+                </div>
+              )}
 
               {/* Pedagogical Inspector Signature (Fiche & Exams) */}
               {documentData.showInspectorSignature && (
-                <div className="p-3 border border-dashed border-slate-300 rounded-xl col-span-2 sm:col-span-1">
+                <div className="p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50/50 relative group col-span-1 sm:col-span-2 lg:col-span-1">
+                  {isEditable && (
+                    <button
+                      onClick={() => onUpdateField('showInspectorSignature', false)}
+                      title="إخفاء تأشيرة المفتش"
+                      className="absolute top-1 left-1 p-1 bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-md border border-slate-200 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
                   <div className="font-bold text-slate-800 mb-1">{isFr ? 'Visa de l\'Inspection' : 'تأشيرة المفتش التربوي'}</div>
-                  <div className="text-[10px] text-slate-500 font-medium">{isFr ? 'Inspection Pédagogique' : 'التفتيش التربوي التخصصي'}</div>
+                  <div className="text-[10px] text-slate-600 font-bold">{isFr ? 'Inspection Pédagogique' : 'التفتيش التربوي التخصصي'}</div>
                   <div className="h-10"></div>
                 </div>
               )}
@@ -1164,3 +1504,4 @@ export const DocumentPreviewCanvas: React.FC<DocumentPreviewCanvasProps> = ({
     </div>
   );
 };
+

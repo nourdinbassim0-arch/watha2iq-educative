@@ -5,9 +5,13 @@ export type DocumentType =
   | 'evaluation_soutien'      // أنشطة التقويم والدعم والمعالجة
   | 'grille_notation'         // شبكات التنقيط والتفريغ
   | 'fiche_activite'          // بطاقات الأنشطة والتمارين
+  | 'resume_cours'            // ملخص درس وخطة درس
+  | 'fiche_technique'         // بطاقة تقنية وتجريبية
   | 'rapport_conseil'         // تقارير مجالس الأقسام واجتماعات الأولياء
   | 'attestation_affiche'     // الشواهد والملصقات التربوية
   | 'registre_notes';         // سجل النقط والتقويم الشامل
+
+export type TemplateDesignStyle = 'official' | 'modern' | 'minimal' | 'cards' | 'formal_bordered';
 
 export type EducationLevel = 'primary' | 'middle' | 'high';
 
@@ -42,11 +46,22 @@ export type FontFamily =
 
 export type UserRole = 'owner' | 'admin' | 'teacher';
 
+export interface CustomSignature {
+  id: string;
+  title: string;          // مثلا: توقيع الأستاذ(ة)، الإدارة التربوية، السيد المفتش، ولي أمر التلميذ
+  name: string;           // الاسم الكامل للموقع
+  show: boolean;
+  role?: string;
+  alignment?: 'right' | 'center' | 'left';
+}
+
 export interface UserProfile {
   id: string;
   email: string;
   fullName: string;
   role: UserRole;
+  passwordHash?: string;
+  isEmailVerified?: boolean;
   phone?: string;
   academy?: string;
   directorate?: string;
@@ -172,21 +187,28 @@ export interface DocumentData {
   
   // Customization & Visual Styling
   themeColor: ThemeColor;
+  templateDesign?: TemplateDesignStyle;
   fontFamily?: FontFamily;
   fontSize?: 'sm' | 'base' | 'lg';
   marginSize?: 'tight' | 'normal' | 'generous';
   borderStyle?: 'official' | 'zellij' | 'modern' | 'minimal';
+  lineSpacing?: '1.0' | '1.15' | '1.25' | '1.5' | '1.8' | '2.0';
+  textAlign?: 'right' | 'center' | 'left' | 'justify';
+  customFontScale?: number;
+  branchOrStream?: string;
   showOfficialHeader: boolean;
   showOfficialEmblem?: boolean;
   showSchoolLogo: boolean;
   customLogoUrl?: string;
   customSchoolLogoUrl?: string;
   showTeacherSignature: boolean;
+  showSchoolSignature?: boolean;
   showInspectorSignature: boolean;
   showFooterInfo: boolean;
   showPageNumbers: boolean;
   pageFormat: PageFormat;
   watermarkText?: string;
+  customSignatures?: CustomSignature[];
   
   // Content specific to Fiche Pédagogique (جذاذة تربوية)
   generalCompetences?: string[];
@@ -199,6 +221,33 @@ export interface DocumentData {
   summativeEval?: string;
   supportActivities?: string;
   teacherNotes?: string;
+
+  // Content specific to Résumé de cours / Plan de cours (ملخص درس وخطة درس)
+  resumeSections?: {
+    id: string;
+    title: string;
+    content: string;
+    keyPoints?: string[];
+  }[];
+
+  // Content specific to Fiche Technique / Expérimentale (بطاقة تقنية وتجريبية)
+  technicalSheetSections?: {
+    id: string;
+    title: string;
+    objective: string;
+    materials: string[];
+    steps: string[];
+    securityRules: string[];
+    schemaDescription?: string;
+  }[];
+
+  // Content specific to Custom Dynamic Sections
+  customSections?: {
+    id: string;
+    title: string;
+    type: 'text' | 'table' | 'bullets' | 'qa';
+    content: any;
+  }[];
 
   // Content specific to EPS (التربية البدنية والرياضية)
   epsWarmUp?: {
@@ -223,6 +272,7 @@ export interface DocumentData {
   exercises?: ExerciseItem[];
   examTotalPoints?: string;
   gradingCriteria?: string[];
+  exerciseTotalCalculationMode?: 'auto' | 'manual';
 
   // Content specific to Évaluation et Soutien (أنشطة التقويم والدعم)
   identifiedGaps?: string[];

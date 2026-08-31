@@ -57,11 +57,11 @@ export const DocumentWizard: React.FC<DocumentWizardProps> = ({
   const [schoolName, setSchoolName] = useState('الثانوية الإعدادية ابن خلدون');
   const [academy, setAcademy] = useState('الأكاديمية الجهوية للتربية والتكوين لجهة الرباط سلا القنيطرة');
   const [directorate, setDirectorate] = useState('المديرية الإقليمية بسلا');
-  const [teacherName, setTeacherName] = useState('الأستاذ: ذ. محمد الإدريسي');
+  const [teacherName, setTeacherName] = useState('الأستاذ(ة): ذ. محمد الإدريسي');
   const [classGroup, setClassGroup] = useState('3 / 1 و 3 / 2');
   const [academicYear, setAcademicYear] = useState('2026 - 2027');
-  const [unitOrModule, setUnitOrModule] = useState('الهندسة المستوية والإنشاءات');
-  const [lessonTitle, setLessonTitle] = useState('مبرهنة طاليس المباشرة والعكسية');
+  const [unitOrModule, setUnitOrModule] = useState('الحساب الجبري والمعادلات');
+  const [lessonTitle, setLessonTitle] = useState('الحساب الحرفي والمعادلات من الدرجة الأولى');
   const [duration, setDuration] = useState('4 حصص (4 ساعات)');
   const [documentDate, setDocumentDate] = useState(new Date().toISOString().split('T')[0]);
   const [customInstructions, setCustomInstructions] = useState('');
@@ -104,15 +104,60 @@ export const DocumentWizard: React.FC<DocumentWizardProps> = ({
     }
   }, [currentSubject]);
 
-  // Auto-populate unit & lesson when subject changes
+  // Dynamic context generator for topic, unit and title based on Document Type & Subject
   useEffect(() => {
-    const units = language === 'fr' 
-      ? currentSubject.defaultUnits.fr 
-      : currentSubject.defaultUnits.ar;
-    if (units && units.length > 0) {
-      setUnitOrModule(units[0]);
+    const isFrench = language === 'fr';
+    
+    if (docType === 'charte_classe') {
+      setUnitOrModule(isFrench ? 'Vie scolaire et citoyenneté' : 'الحياة المدرسية والسلوك المدني والعيش المشترك');
+      setLessonTitle(isFrench ? 'Règlement Intérieur et Charte de Classe' : 'ميثاق وقانون القسم والعيش المشترك');
+    } else if (docType === 'controle_devoir') {
+      setUnitOrModule(isFrench ? 'Évaluation continue' : 'المراقبة المستمرة الدورية');
+      setLessonTitle(isFrench ? `Contrôle continu N°1 - ${currentSubject.nameFr}` : `فرض محروس رقم 1 - مادة ${currentSubject.nameAr}`);
+    } else if (docType === 'evaluation_soutien') {
+      setUnitOrModule(isFrench ? 'Dispositif de soutien' : 'أنشطة الدعم والمعالجة البيداغوجية');
+      setLessonTitle(isFrench ? `Plan de remédiation - ${currentSubject.nameFr}` : `خطة الدعم التربوي والمعالجة البيداغوجية - مادة ${currentSubject.nameAr}`);
+    } else if (docType === 'grille_notation') {
+      setUnitOrModule(isFrench ? 'Suivi et notation' : 'تفريغ وتتبع نقط المراقبة المستمرة');
+      setLessonTitle(isFrench ? `Grille d'évaluation sommative - ${currentSubject.nameFr}` : `شبكة تفريغ نتائج المراقبة المستمرة - مادة ${currentSubject.nameAr}`);
+    } else if (docType === 'rapport_conseil') {
+      setUnitOrModule(isFrench ? 'Gestion pédagogique' : 'مجالس المؤسسة والتوجيه التربوي');
+      setLessonTitle(isFrench ? 'Bilan trimestriel des résultats scolaires' : 'تقرير تركيبي لاجتماع مجلس القسم');
+    } else if (docType === 'attestation_affiche') {
+      setUnitOrModule(isFrench ? 'Encouragement et mérite' : 'الحياة المدرسية وتشجيع التميز');
+      setLessonTitle(isFrench ? 'Reconnaissance du mérite scolaire' : 'شهادة تقدير وتشجيع للتفوق الدراسي');
+    } else if (docType === 'fiche_activite') {
+      setUnitOrModule(isFrench ? 'Travaux dirigés et TP' : 'الأنشطة التطبيقية والداعمة');
+      setLessonTitle(isFrench ? `Fiche d'exercices d'application - ${currentSubject.nameFr}` : `بطاقة أنشطة تطبيقية وتمارين للدعم - مادة ${currentSubject.nameAr}`);
+    } else if (docType === 'resume_cours') {
+      setUnitOrModule(isFrench ? 'Synthèse de cours' : 'ملخصات الدروس والخرائط الذهنية');
+      setLessonTitle(isFrench ? `Résumé méthodique - ${currentSubject.nameFr}` : `ملخص شامل ومركّز للدرس - مادة ${currentSubject.nameAr}`);
+    } else {
+      // Fiche pedagogique
+      const subjectMap: Record<string, { ar: string; fr: string; unitAr: string; unitFr: string }> = {
+        math: { ar: 'الحساب الحرفي والمعادلات من الدرجة الأولى', fr: 'Calcul littéral et équations', unitAr: 'الحساب الجبري والمعادلات', unitFr: 'Calcul algébrique' },
+        physics_chemistry: { ar: 'المقاومة الكهربائية وقانون أوم', fr: 'Résistance électrique et loi d\'Ohm', unitAr: 'الكهرباء والطاقة', unitFr: 'Électricité' },
+        life_earth_sciences: { ar: 'الهضم والامتصاص المعوي والتربية الغذائية', fr: 'Digestion et absorption intestinale', unitAr: 'وظائف الاقتيات والتربية الصحية', unitFr: 'Fonctions de nutrition' },
+        arabic: { ar: 'مكون القراءة: النص القرائي وقضايا معاصرة', fr: 'Lecture méthodique et étude de texte', unitAr: 'المجال الاجتماعي والاقتصادي', unitFr: 'Domaine social' },
+        french: { ar: 'دراسة النص الأدبي والتعبير الكتابي', fr: 'Étude de texte et production écrite', unitAr: 'La nouvelle réaliste', unitFr: 'La nouvelle réaliste' },
+        islamic_studies: { ar: 'مدخل التزكية: سورة الحشر والقرآن الكريم', fr: 'Éducation islamique : Tazkia', unitAr: 'مدخل التزكية والاقتداء', unitFr: 'Tazkia & Valeurs' },
+        history_geography: { ar: 'المغرب: الكفاح من أجل الاستقلال وإتمام الوحدة الترابية', fr: 'Histoire et Géographie du Maroc', unitAr: 'المغرب والعالم المعاصر', unitFr: 'Le Maroc et le monde' },
+        philosophy: { ar: 'مجزوءة الوضع البشري: مفهوم الشخص والهوية', fr: 'La condition humaine : La personne', unitAr: 'مجزوءة الوضع البشري', unitFr: 'La condition humaine' },
+        english: { ar: 'Reading Comprehension & Grammar Structure', fr: 'Reading Comprehension & Grammar', unitAr: 'Unit 1: Education and Ambition', unitFr: 'Unit 1: Education' },
+        pe_eps: { ar: 'الجمباز الأرضي والتوافق الحركي الجماعي', fr: 'Gymnastique au sol et coordination', unitAr: 'الأنشطة البدنية والرياضية', unitFr: 'Activités Physiques et Sportives' },
+      };
+
+      const match = subjectMap[currentSubject.id];
+      if (match) {
+        setUnitOrModule(isFrench ? match.unitFr : match.unitAr);
+        setLessonTitle(isFrench ? match.fr : match.ar);
+      } else {
+        const units = isFrench ? currentSubject.defaultUnits.fr : currentSubject.defaultUnits.ar;
+        if (units && units.length > 0) setUnitOrModule(units[0]);
+        setLessonTitle(isFrench ? `Leçon : ${currentSubject.nameFr}` : `درس في مادة ${currentSubject.nameAr}`);
+      }
     }
-  }, [currentSubject, language]);
+  }, [docType, currentSubject, language]);
 
   const handleCreateDocument = async () => {
     setIsGeneratingAi(true);
@@ -262,7 +307,11 @@ export const DocumentWizard: React.FC<DocumentWizardProps> = ({
 
     const newDoc: DocumentData = {
       id: `doc-${Date.now()}`,
-      title: `${DOCUMENT_TYPE_LABELS[docType].ar}: ${lessonTitle}`,
+      title: isFr 
+        ? `${DOCUMENT_TYPE_LABELS[docType].fr} : ${lessonTitle}`
+        : (docType === 'charte_classe' || docType === 'attestation_affiche' || docType === 'rapport_conseil'
+            ? lessonTitle
+            : `${DOCUMENT_TYPE_LABELS[docType].ar}: ${lessonTitle}`),
       documentType: docType,
       level,
       grade,
@@ -286,10 +335,12 @@ export const DocumentWizard: React.FC<DocumentWizardProps> = ({
       duration,
       documentDate,
       themeColor: docType === 'charte_classe' ? 'royal' : docType === 'controle_devoir' ? 'crimson' : 'emerald',
+      templateDesign: 'official',
       showOfficialHeader: true,
       showOfficialEmblem: true,
       showSchoolLogo: true,
       showTeacherSignature: true,
+      showSchoolSignature: true,
       showInspectorSignature: docType === 'fiche_pedagogique',
       showFooterInfo: true,
       showPageNumbers: true,

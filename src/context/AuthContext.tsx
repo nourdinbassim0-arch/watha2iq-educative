@@ -1,5 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserProfile, UserRole, AuditLogItem, BroadcastAnnouncement } from '../types';
+import { hashPassword, verifyPassword, generateOtpCode } from '../utils/security';
+
+interface PendingOtp {
+  email: string;
+  code: string;
+  expiresAt: number;
+  type: 'register' | 'reset';
+}
 
 interface AuthContextType {
   currentUser: UserProfile | null;
@@ -11,8 +19,19 @@ interface AuthContextType {
   login: (email: string, password?: string) => Promise<boolean>;
   loginWithGoogle: () => Promise<boolean>;
   register: (fullName: string, email: string, password?: string, role?: UserRole) => Promise<boolean>;
+  sendEmailVerificationOtp: (email: string, type?: 'register' | 'reset') => Promise<{ code: string; expiresAt: number }>;
+  verifyOtpAndRegister: (params: {
+    fullName: string;
+    email: string;
+    password: string;
+    code: string;
+    role?: UserRole;
+  }) => Promise<boolean>;
+  requestPasswordResetOtp: (email: string) => Promise<{ code: string; expiresAt: number }>;
+  resetPasswordWithOtp: (email: string, code: string, newPassword: string) => Promise<boolean>;
   logout: () => void;
   updateProfile: (data: Partial<UserProfile>) => void;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>;
   usersList: UserProfile[];
   updateUserRole: (userId: string, newRole: UserRole) => void;
   toggleUserStatus: (userId: string) => void;
@@ -30,6 +49,7 @@ const STORAGE_USERS_KEY = 'wathaiqi_users_v1';
 const STORAGE_CURRENT_USER_KEY = 'wathaiqi_current_user_v1';
 const STORAGE_LOGS_KEY = 'wathaiqi_audit_logs_v1';
 const STORAGE_ANNOUNCEMENTS_KEY = 'wathaiqi_announcements_v1';
+const STORAGE_PENDING_OTPS_KEY = 'wathaiqi_pending_otps_v1';
 
 const INITIAL_USERS: UserProfile[] = [
   {
@@ -42,6 +62,7 @@ const INITIAL_USERS: UserProfile[] = [
     directorate: 'المديرية الإقليمية سطات',
     schoolName: 'الثانوية التأهيلية ابن خلدون',
     defaultSubject: 'الرياضيات',
+    isEmailVerified: true,
     createdAt: Date.now() - 30 * 86400000,
     lastLoginAt: Date.now(),
     status: 'active',
@@ -56,6 +77,7 @@ const INITIAL_USERS: UserProfile[] = [
     directorate: 'المديرية الإقليمية الرباط',
     schoolName: 'الثانوية الإعدادية يعقوب المنصور',
     defaultSubject: 'علوم الحياة والأرض',
+    isEmailVerified: true,
     createdAt: Date.now() - 15 * 86400000,
     lastLoginAt: Date.now() - 2 * 86400000,
     status: 'active',
@@ -70,6 +92,7 @@ const INITIAL_USERS: UserProfile[] = [
     directorate: 'المديرية الإقليمية مراكش',
     schoolName: 'مدرسة المسيرة الخضراء الابتدائية',
     defaultSubject: 'اللغة العربية والتربية الإسلامية',
+    isEmailVerified: true,
     createdAt: Date.now() - 20 * 86400000,
     lastLoginAt: Date.now() - 1 * 86400000,
     status: 'active',
@@ -83,7 +106,7 @@ const INITIAL_LOGS: AuditLogItem[] = [
     actionType: 'user_registered',
     performedBy: 'نظام المنصة',
     targetUserOrItem: 'nourdinbassim0@gmail.com',
-    details: 'تسجيل وتفعيل حساب مالك المنصة الرئيسي',
+    details: 'تسجيل وتفعيل حساب مالك المنصة الرئيسي مع التحقق من البريد',
   },
   {
     id: 'log-2',
@@ -156,6 +179,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
 
+  // Pending OTPs map
+  const [pendingOtps, setPendingOtps] = useState<Record<string, PendingOtp>>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_PENDING_OTPS_KEY);
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  });
+
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_OWNER_EMAIL_KEY, ownerEmail);
@@ -199,6 +232,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error(e);
     }
   }, [announcements]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_PENDING_OTPS_KEY, JSON.stringify(pendingOtps));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [pendingOtps]);
 
   const addAuditLog = (
     actionType: AuditLogItem['actionType'],
@@ -248,61 +289,270 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   };
 
-  const login = async (email: string, _password?: string): Promise<boolean> => {
+  /**
+   * Generates and registers an OTP code for email verification
+   */
+  const sendEmailVerificationOtp = async (
+    email: string,
+    type: 'register' | 'reset' = 'register'
+  ): Promise<{ code: string; expiresAt: number }> => {
     const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      throw new Error('يرجى إدخال بريد إلكتروني صحيح.');
+    }
+
+    const code = generateOtpCode();
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    setPendingOtps((prev) => ({
+      ...prev,
+      [cleanEmail]: {
+        email: cleanEmail,
+        code,
+        expiresAt,
+        type,
+      },
+    }));
+
+    return { code, expiresAt };
+  };
+
+  /**
+   * Completes account creation after OTP email verification
+   */
+  const verifyOtpAndRegister = async (params: {
+    fullName: string;
+    email: string;
+    password: string;
+    code: string;
+    role?: UserRole;
+  }): Promise<boolean> => {
+    const cleanEmail = params.email.trim().toLowerCase();
+    const enteredCode = params.code.trim();
+
+    if (!params.fullName.trim()) {
+      throw new Error('يرجى كتابة الاسم والنسب الكامل للأستاذ(ة).');
+    }
+
+    if (!params.password || params.password.length < 6) {
+      throw new Error('يجب أن تتكون كلمة المرور من 6 أحرف أو أرقام على الأقل.');
+    }
+
+    // Check if user already exists
+    const existing = usersList.find((u) => u.email.toLowerCase() === cleanEmail);
+    if (existing) {
+      throw new Error('هذا البريد الإلكتروني مسجل بالفعل. يرجى تسجيل الدخول بدلاً من ذلك.');
+    }
+
+    // Verify OTP
+    const pending = pendingOtps[cleanEmail];
+    if (!pending || pending.code !== enteredCode) {
+      throw new Error('رمز التحقق غير صحيح. يرجى التأكد من الرمز المكون من 6 أرقام وإعادة المحاولة.');
+    }
+
+    if (Date.now() > pending.expiresAt) {
+      throw new Error('انتهت صلاحية رمز التحقق (أكثر من 10 دقائق). يرجى النقر على "إعادة إرسال الرمز".');
+    }
+
+    const passwordHash = await hashPassword(params.password);
+    const isOwnerMatch = cleanEmail === ownerEmail.toLowerCase();
+    const finalRole: UserRole = isOwnerMatch ? 'owner' : (params.role || 'teacher');
+
+    const newUser: UserProfile = {
+      id: `usr-${Date.now()}`,
+      email: cleanEmail,
+      fullName: params.fullName.trim(),
+      role: finalRole,
+      passwordHash,
+      isEmailVerified: true,
+      createdAt: Date.now(),
+      lastLoginAt: Date.now(),
+      status: 'active',
+    };
+
+    setUsersList((prev) => [newUser, ...prev]);
+    setCurrentUser(newUser);
+
+    // Clean up OTP
+    setPendingOtps((prev) => {
+      const copy = { ...prev };
+      delete copy[cleanEmail];
+      return copy;
+    });
+
+    addAuditLog('user_registered', newUser.fullName, cleanEmail, `إنشاء حساب جديد وتفعيله برمز التحقق البريدي (الدور: ${finalRole})`);
+    return true;
+  };
+
+  /**
+   * Request password reset OTP
+   */
+  const requestPasswordResetOtp = async (email: string): Promise<{ code: string; expiresAt: number }> => {
+    const cleanEmail = email.trim().toLowerCase();
+    const user = usersList.find((u) => u.email.toLowerCase() === cleanEmail);
+    if (!user) {
+      throw new Error('لم يتم العثور على حساب مسجل بهذا البريد الإلكتروني.');
+    }
+    return sendEmailVerificationOtp(cleanEmail, 'reset');
+  };
+
+  /**
+   * Resets password using valid OTP code
+   */
+  const resetPasswordWithOtp = async (email: string, code: string, newPassword: string): Promise<boolean> => {
+    const cleanEmail = email.trim().toLowerCase();
+    const enteredCode = code.trim();
+
+    if (!newPassword || newPassword.length < 6) {
+      throw new Error('يجب أن تتكون كلمة المرور الجديدة من 6 خانات على الأقل.');
+    }
+
+    const pending = pendingOtps[cleanEmail];
+    if (!pending || pending.code !== enteredCode) {
+      throw new Error('رمز التحقق غير صحيح. يرجى التأكد من الرمز.');
+    }
+
+    if (Date.now() > pending.expiresAt) {
+      throw new Error('انتهت صلاحية رمز التحقق. يرجى طلب رمز جديد.');
+    }
+
+    const user = usersList.find((u) => u.email.toLowerCase() === cleanEmail);
+    if (!user) {
+      throw new Error('لم يتم العثور على المستخدم.');
+    }
+
+    const newHash = await hashPassword(newPassword);
+    const updatedUser = {
+      ...user,
+      passwordHash: newHash,
+    };
+
+    setUsersList((prev) => prev.map((u) => (u.id === user.id ? updatedUser : u)));
+    if (currentUser?.id === user.id) {
+      setCurrentUser(updatedUser);
+    }
+
+    // Clean up OTP
+    setPendingOtps((prev) => {
+      const copy = { ...prev };
+      delete copy[cleanEmail];
+      return copy;
+    });
+
+    addAuditLog('settings_updated', user.fullName, user.email, 'إعادة تعيين وتحديث كلمة المرور بنجاح');
+    return true;
+  };
+
+  /**
+   * Changes password for currently logged-in user
+   */
+  const changePassword = async (oldPassword: string, newPassword: string): Promise<boolean> => {
+    if (!currentUser) throw new Error('يرجى تسجيل الدخول أولاً.');
+    if (!newPassword || newPassword.length < 6) {
+      throw new Error('يجب أن تتكون كلمة المرور الجديدة من 6 أحرف أو أرقام على الأقل.');
+    }
+
+    if (currentUser.passwordHash) {
+      const isValid = await verifyPassword(oldPassword, currentUser.passwordHash);
+      if (!isValid) {
+        throw new Error('كلمة المرور الحالية غير صحيحة.');
+      }
+    }
+
+    const newHash = await hashPassword(newPassword);
+    const updatedUser = {
+      ...currentUser,
+      passwordHash: newHash,
+    };
+
+    setCurrentUser(updatedUser);
+    setUsersList((prev) => prev.map((u) => (u.id === currentUser.id ? updatedUser : u)));
+    addAuditLog('settings_updated', currentUser.fullName, currentUser.email, 'تغيير كلمة المرور من إعدادات الحساب');
+    return true;
+  };
+
+  /**
+   * Secure login with exact password checking
+   */
+  const login = async (email: string, password?: string): Promise<boolean> => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
+      throw new Error('يرجى إدخال البريد الإلكتروني.');
+    }
+
     const existing = usersList.find((u) => u.email.toLowerCase() === cleanEmail);
     const isOwnerMatch = cleanEmail === ownerEmail.toLowerCase();
 
-    if (existing) {
-      if (existing.status === 'disabled') {
-        throw new Error('هذا الحساب معطل مؤقتاً من قبل إدارة المنصة. يرجى التواصل مع الدعم.');
-      }
-      const updated = {
-        ...existing,
-        role: isOwnerMatch ? ('owner' as UserRole) : existing.role,
-        lastLoginAt: Date.now(),
-      };
-      setCurrentUser(updated);
-      setUsersList((prev) => prev.map((u) => (u.id === existing.id ? updated : u)));
-      addAuditLog('user_registered', existing.fullName, existing.email, 'تسجيل دخول ناجح للمنصة');
-      return true;
-    } else {
-      // Auto register teacher
-      const newUser: UserProfile = {
-        id: `usr-${Date.now()}`,
-        email: cleanEmail,
-        fullName: isOwnerMatch ? 'مالك المنصة' : cleanEmail.split('@')[0],
-        role: isOwnerMatch ? 'owner' : 'teacher',
-        createdAt: Date.now(),
-        lastLoginAt: Date.now(),
-        status: 'active',
-      };
-      setUsersList((prev) => [newUser, ...prev]);
-      setCurrentUser(newUser);
-      addAuditLog('user_registered', newUser.fullName, newUser.email, 'إنشاء حساب جديد وتسجيل الدخول');
-      return true;
+    if (!existing) {
+      throw new Error('لم يتم العثور على حساب بهذا البريد الإلكتروني. يرجى النقر على «إنشاء حساب جديد» أولاً.');
     }
+
+    if (existing.status === 'disabled') {
+      throw new Error('هذا الحساب معطل مؤقتاً من قبل إدارة المنصة. يرجى التواصل مع الدعم.');
+    }
+
+    // Strict password verification
+    if (existing.passwordHash) {
+      if (!password) {
+        throw new Error('يرجى إدخال كلمة المرور.');
+      }
+      const isMatch = await verifyPassword(password, existing.passwordHash);
+      if (!isMatch) {
+        throw new Error('كلمة المرور غير صحيحة. يرجى التأكد من كتابة كلمة المرور المعتمدة وإعادة المحاولة.');
+      }
+    } else {
+      // If user had no passwordHash set yet (legacy initial user), set it on first login if provided
+      if (password && password.length >= 4) {
+        const hash = await hashPassword(password);
+        existing.passwordHash = hash;
+      }
+    }
+
+    const updated: UserProfile = {
+      ...existing,
+      role: isOwnerMatch ? ('owner' as UserRole) : existing.role,
+      lastLoginAt: Date.now(),
+    };
+
+    setCurrentUser(updated);
+    setUsersList((prev) => prev.map((u) => (u.id === existing.id ? updated : u)));
+    addAuditLog('user_registered', existing.fullName, existing.email, 'تسجيل دخول ناجح للمنصة بكلمة المرور');
+    return true;
   };
 
   const loginWithGoogle = async (): Promise<boolean> => {
+    const isOwnerMatch = ownerEmail.toLowerCase();
+    const existingOwner = usersList.find((u) => u.email.toLowerCase() === isOwnerMatch);
+    if (existingOwner) {
+      setCurrentUser(existingOwner);
+      return true;
+    }
     return login(ownerEmail);
   };
 
   const register = async (
     fullName: string,
     email: string,
-    _password?: string,
+    password?: string,
     role: UserRole = 'teacher'
   ): Promise<boolean> => {
     const cleanEmail = email.trim().toLowerCase();
     const isOwnerMatch = cleanEmail === ownerEmail.toLowerCase();
     const finalRole: UserRole = isOwnerMatch ? 'owner' : role;
+    const passwordHash = password ? await hashPassword(password) : undefined;
+
+    const existing = usersList.find((u) => u.email.toLowerCase() === cleanEmail);
+    if (existing) {
+      throw new Error('هذا البريد الإلكتروني مسجل بالفعل. يرجى تسجيل الدخول.');
+    }
 
     const newUser: UserProfile = {
       id: `usr-${Date.now()}`,
       email: cleanEmail,
-      fullName,
+      fullName: fullName.trim(),
       role: finalRole,
+      passwordHash,
+      isEmailVerified: true,
       createdAt: Date.now(),
       lastLoginAt: Date.now(),
       status: 'active',
@@ -402,8 +652,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         loginWithGoogle,
         register,
+        sendEmailVerificationOtp,
+        verifyOtpAndRegister,
+        requestPasswordResetOtp,
+        resetPasswordWithOtp,
         logout,
         updateProfile,
+        changePassword,
         usersList,
         updateUserRole,
         toggleUserStatus,
@@ -427,3 +682,4 @@ export const useAuth = () => {
   }
   return context;
 };
+

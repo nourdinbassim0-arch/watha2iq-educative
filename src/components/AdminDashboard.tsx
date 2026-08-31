@@ -45,6 +45,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     toggleUserStatus,
     deleteUser,
     auditLogs,
+    addAuditLog,
     announcements,
     addAnnouncement,
     deleteAnnouncement,
@@ -215,16 +216,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       window.dispatchEvent(new Event('officialEmblemUpdated'));
       
       // Add to audit logs
-      setAuditLogs((prev) => [
-        {
-          id: `log-${Date.now()}`,
-          action: 'تحديث الشعار الرسمي للمملكة المغربية',
-          user: currentUser?.fullName || 'المالك الرئيسي',
-          timestamp: new Date().toLocaleString('ar-MA'),
-          ip: '196.200.140.22',
-        },
-        ...prev,
-      ]);
+      addAuditLog('settings_update', currentUser?.fullName || 'المالك الرئيسي', 'الشعار الرسمي', 'تحديث واعتماد الشعار الرسمي للمملكة المغربية');
 
       setEmblemSuccessMsg('✓ تم حفظ واعتماد الشعار الرسمي للمملكة المغربية بنجاح! سيظهر الآن تلقائياً في رأس جميع الوثائق والجذاذات الجديدة والحالية.');
       setTimeout(() => setEmblemSuccessMsg(''), 6000);
@@ -244,16 +236,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     window.dispatchEvent(new Event('officialEmblemUpdated'));
 
     // Add to audit logs
-    setAuditLogs((prev) => [
-      {
-        id: `log-${Date.now()}`,
-        action: 'حذف الشعار الرسمي للمملكة المغربية والعودة للافتراضي',
-        user: currentUser?.fullName || 'المالك الرئيسي',
-        timestamp: new Date().toLocaleString('ar-MA'),
-        ip: '196.200.140.22',
-      },
-      ...prev,
-    ]);
+    addAuditLog('settings_update', currentUser?.fullName || 'المالك الرئيسي', 'الشعار الرسمي', 'حذف الشعار الرسمي للمملكة المغربية والعودة للافتراضي');
 
     setEmblemSuccessMsg('تم حذف الشعار المخصص بنجاح والعودة إلى الترويسة الافتراضية.');
     setTimeout(() => setEmblemSuccessMsg(''), 4000);
