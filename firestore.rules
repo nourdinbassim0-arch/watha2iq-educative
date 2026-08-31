@@ -1,0 +1,80 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "OWNER";
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // Users collection
+    match /users/{uid} {
+      // User can read their own profile, Owner can read all profiles
+      allow read: if isSelf(uid) || isOwner();
+
+      // Normal signup strictly allows TEACHER role creation for themselves
+      allow create: if isSelf(uid)
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.role == "TEACHER";
+
+      // Self can update non-critical info (cannot escalate to OWNER)
+      // Owner can update any user (including roles or status)
+      allow update: if isOwner()
+        || (
+          isSelf(uid)
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.uid == resource.data.uid
+        );
+
+      allow delete: if isOwner();
+    }
+
+    // Documents collection
+    match /documents/{documentId} {
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid;
+
+      allow read: if signedIn()
+        && (
+          resource.data.ownerId == request.auth.uid
+          || isOwner()
+        );
+
+      allow update: if signedIn()
+        && (
+          resource.data.ownerId == request.auth.uid
+          || isOwner()
+        )
+        && request.resource.data.ownerId == resource.data.ownerId;
+
+      allow delete: if signedIn()
+        && (
+          resource.data.ownerId == request.auth.uid
+          || isOwner()
+        );
+    }
+
+    // Settings collection (e.g. global site settings)
+    match /settings/{settingId} {
+      allow read: if true;
+      allow create, update, delete: if isOwner();
+    }
+
+    // Activity Logs collection (Owner-only for auditing)
+    match /auditLogs/{logId} {
+      allow read: if isOwner();
+      allow create: if signedIn();
+      allow update, delete: if false;
+    }
+  }
+}

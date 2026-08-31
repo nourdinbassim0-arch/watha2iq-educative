@@ -1,310 +1,369 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
-  User,
-  School,
-  FileSignature,
-  Upload,
-  CheckCircle2,
-  Cloud,
-  Shield,
-  Save,
-  Trash2,
+  User as UserIcon,
+  Mail,
+  Lock,
+  Phone,
+  ShieldCheck,
+  CheckCircle,
+  AlertCircle,
+  LogOut,
+  RefreshCw,
   Sparkles,
 } from 'lucide-react';
 
 interface AccountPageProps {
-  onNavigateAdmin?: () => void;
+  onBack: () => void;
 }
 
-export const AccountPage: React.FC<AccountPageProps> = ({ onNavigateAdmin }) => {
-  const { currentUser, updateProfile, isOwner, isAdmin } = useAuth();
-  
-  const [fullName, setFullName] = useState(currentUser?.fullName || '');
-  const [phone, setPhone] = useState(currentUser?.phone || '');
-  const [academy, setAcademy] = useState(currentUser?.academy || 'أكاديمية جهة الدار البيضاء - سطات');
-  const [directorate, setDirectorate] = useState(currentUser?.directorate || 'المديرية الإقليمية سطات');
-  const [schoolName, setSchoolName] = useState(currentUser?.schoolName || 'الثانوية التأهيلية ابن خلدون');
-  const [defaultSubject, setDefaultSubject] = useState(currentUser?.defaultSubject || 'الرياضيات');
-  const [signatureUrl, setSignatureUrl] = useState(currentUser?.digitalSignatureUrl || '');
-  const [schoolLogoUrl, setSchoolLogoUrl] = useState(currentUser?.schoolLogoUrl || '');
-  const [savedSuccess, setSavedSuccess] = useState(false);
+export const AccountPage: React.FC<AccountPageProps> = ({ onBack }) => {
+  const {
+    user,
+    profile,
+    logout,
+    resendVerificationEmail,
+    updateUserPassword,
+    updateUserProfile,
+    refreshUser,
+  } = useAuth();
 
-  const sigInputRef = useRef<HTMLInputElement>(null);
-  const logoInputRef = useRef<HTMLInputElement>(null);
+  const [fullName, setFullName] = useState(profile?.name || user?.displayName || '');
+  const [phone, setPhone] = useState(profile?.phone || '');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
-  const handleSave = (e: React.FormEvent) => {
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [loadingPass, setLoadingPass] = useState(false);
+  const [loadingVerify, setLoadingVerify] = useState(false);
+
+  const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [passMsg, setPassMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [verifyMsg, setVerifyMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateProfile({
-      fullName,
-      phone,
-      academy,
-      directorate,
-      schoolName,
-      defaultSubject,
-      digitalSignatureUrl: signatureUrl,
-      schoolLogoUrl,
+    setProfileMsg(null);
+    setLoadingProfile(true);
+
+    const res = await updateUserProfile({
+      fullName: fullName.trim(),
+      phone: phone.trim(),
     });
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
-  };
 
-  const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const res = event.target?.result as string;
-        setSignatureUrl(res);
-      };
-      reader.readAsDataURL(file);
+    setLoadingProfile(false);
+    if (res.success) {
+      setProfileMsg({ type: 'success', text: res.message || 'تم تحديث البيانات بنجاح.' });
+    } else {
+      setProfileMsg({ type: 'error', text: res.message || 'فشل تحديث البيانات.' });
     }
   };
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const res = event.target?.result as string;
-        setSchoolLogoUrl(res);
-      };
-      reader.readAsDataURL(file);
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPassMsg(null);
+
+    if (newPassword.length < 6) {
+      setPassMsg({ type: 'error', text: 'يجب ألا تقل كلمة المرور عن 6 أحرف.' });
+      return;
     }
+
+    if (newPassword !== confirmPassword) {
+      setPassMsg({ type: 'error', text: 'كلمتا المرور غير متطابقتين.' });
+      return;
+    }
+
+    setLoadingPass(true);
+    const res = await updateUserPassword(newPassword);
+    setLoadingPass(false);
+
+    if (res.success) {
+      setPassMsg({ type: 'success', text: res.message || 'تم تغيير كلمة المرور بنجاح.' });
+      setNewPassword('');
+      setConfirmPassword('');
+    } else {
+      setPassMsg({ type: 'error', text: res.message || 'تعذر تغيير كلمة المرور.' });
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setVerifyMsg(null);
+    setLoadingVerify(true);
+    const res = await resendVerificationEmail();
+    setLoadingVerify(false);
+
+    if (res.success) {
+      setVerifyMsg({ type: 'success', text: res.message || 'تم إرسال رابط التحقق.' });
+    } else {
+      setVerifyMsg({ type: 'error', text: res.message || 'تعذر إرسال الرابط.' });
+    }
+  };
+
+  const handleCheckStatus = async () => {
+    setLoadingVerify(true);
+    await refreshUser();
+    setLoadingVerify(false);
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6" dir="rtl">
-      
-      {/* Account Header */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-emerald-800 text-white font-bold text-2xl flex items-center justify-center shadow-xs">
-            {fullName.charAt(0) || 'أ'}
+    <div className="max-w-4xl mx-auto px-4 py-8" dir="rtl">
+      {/* Top Breadcrumb / Header */}
+      <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-200 dark:border-slate-800">
+        <div>
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-3">
+            <UserIcon className="w-7 h-7 text-emerald-600" />
+            إدارة الحساب الشخصي
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">
+            إدارة بيانات الأستاذ، الأمان والتحقق من الحساب
+          </p>
+        </div>
+
+        <button
+          onClick={onBack}
+          className="px-4 py-2 text-sm font-semibold rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 transition-colors"
+        >
+          العودة للرئيسية
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Left Column: Summary Card */}
+        <div className="md:col-span-1 space-y-6">
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm text-center">
+            <div className="w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-950/60 border-2 border-emerald-500 flex items-center justify-center mx-auto text-emerald-600 font-bold text-2xl shadow-inner mb-4">
+              {profile?.name ? profile.name.charAt(0).toUpperCase() : 'U'}
+            </div>
+
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+              {profile?.name || user?.displayName || 'أستاذ'}
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">{user?.email}</p>
+
+            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2 text-xs">
+              <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
+                <span>الدور:</span>
+                <span className="px-2.5 py-1 rounded-full font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 text-[11px]">
+                  {profile?.role === 'OWNER' ? 'مدير المنصة (Owner)' : 'أستاذ (Teacher)'}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
+                <span>حالة البريد:</span>
+                {user?.emailVerified ? (
+                  <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    مفعل ومؤكد
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-amber-600 font-medium">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    غير مؤكد
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <button
+              onClick={() => logout()}
+              className="mt-6 w-full py-2.5 px-4 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-xs font-bold hover:bg-rose-100 transition-colors flex items-center justify-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              تسجيل الخروج
+            </button>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-slate-900">{fullName || 'الأستاذ(ة)'}</h1>
-              <span
-                className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
-                  isOwner
-                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                    : isAdmin
-                    ? 'bg-blue-100 text-blue-900 border border-blue-300'
-                    : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+
+          {/* Verification Status Card */}
+          {!user?.emailVerified && (
+            <div className="p-5 rounded-3xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="text-xs">
+                  <h3 className="font-bold text-amber-900 dark:text-amber-300">
+                    تأكيد البريد الإلكتروني
+                  </h3>
+                  <p className="text-amber-700 dark:text-amber-400 mt-1 leading-relaxed">
+                    يرجى الضغط على رابط التحقق المرسل لبريدك لضمان أمان حسابك بالكامل.
+                  </p>
+
+                  {verifyMsg && (
+                    <p className={`mt-2 font-medium ${verifyMsg.type === 'success' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      {verifyMsg.text}
+                    </p>
+                  )}
+
+                  <div className="mt-3 flex flex-col gap-1.5">
+                    <button
+                      onClick={handleResendVerification}
+                      disabled={loadingVerify}
+                      className="w-full py-2 px-3 rounded-lg bg-amber-600 text-white font-semibold text-[11px] hover:bg-amber-700 transition-colors disabled:opacity-50"
+                    >
+                      {loadingVerify ? 'جارٍ الإرسال...' : 'إعادة إرسال رابط التحقق'}
+                    </button>
+                    <button
+                      onClick={handleCheckStatus}
+                      className="w-full py-1.5 px-3 rounded-lg text-amber-800 dark:text-amber-300 font-semibold text-[11px] hover:bg-amber-100/50 flex items-center justify-center gap-1"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      تحديث الحالة
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Column: Edit Forms */}
+        <div className="md:col-span-2 space-y-6">
+          {/* Profile Details Form */}
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
+              <UserIcon className="w-5 h-5 text-emerald-600" />
+              البيانات الشخصية
+            </h3>
+
+            {profileMsg && (
+              <div
+                className={`mb-4 p-3 rounded-xl text-xs flex items-center gap-2 ${
+                  profileMsg.type === 'success'
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'bg-rose-50 text-rose-700 border border-rose-200'
                 }`}
               >
-                {isOwner ? 'مالك المنصة (Owner)' : isAdmin ? 'مدير معتمد' : 'أستاذ(ة) ممارس'}
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-1 font-mono">{currentUser?.email}</p>
+                {profileMsg.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                <span>{profileMsg.text}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveProfile} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  الاسم الكامل
+                </label>
+                <div className="relative">
+                  <UserIcon className="w-4 h-4 absolute right-3.5 top-3 text-slate-400" />
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                    className="w-full pr-10 pl-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  البريد الإلكتروني (غير قابل للتغيير المباشر)
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 absolute right-3.5 top-3 text-slate-400" />
+                  <input
+                    type="email"
+                    value={user?.email || ''}
+                    disabled
+                    className="w-full pr-10 pl-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/40 text-slate-500 cursor-not-allowed"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  رقم الهاتف (اختياري)
+                </label>
+                <div className="relative">
+                  <Phone className="w-4 h-4 absolute right-3.5 top-3 text-slate-400" />
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="06XXXXXXXX"
+                    className="w-full pr-10 pl-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="submit"
+                  disabled={loadingProfile}
+                  className="py-2.5 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-md disabled:opacity-50"
+                >
+                  {loadingProfile ? 'جارٍ الحفظ...' : 'حفظ التعديلات'}
+                </button>
+              </div>
+            </form>
           </div>
-        </div>
 
-        {isAdmin && onNavigateAdmin && (
-          <button
-            onClick={onNavigateAdmin}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-300 rounded-xl text-xs font-bold transition-colors shadow-xs"
-          >
-            <Shield className="w-4 h-4 text-amber-400" />
-            <span>فتح لوحة الإدارة السرية</span>
-          </button>
-        )}
-      </div>
-
-      {/* Cloud Sync Banner */}
-      <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between text-xs text-emerald-900">
-        <div className="flex items-center gap-3">
-          <Cloud className="w-5 h-5 text-emerald-700 shrink-0" />
-          <span>المزامنة السحابية نشطة ومؤمنة: يتم حفظ جميع جذاذاتك ووثائقك التربوية في حسابك الخاص.</span>
-        </div>
-        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md">
-          متصل
-        </span>
-      </div>
-
-      {/* Form */}
-      <form onSubmit={handleSave} className="space-y-6">
-        
-        {savedSuccess && (
-          <div className="p-4 bg-emerald-100 border border-emerald-300 text-emerald-900 text-xs rounded-2xl flex items-center gap-2 font-bold animate-fadeIn">
-            <CheckCircle2 className="w-5 h-5 text-emerald-700" />
-            <span>تم حفظ معلومات وتفضيلات الحساب بنجاح، وستطبق تلقائياً على كل وثيقة جديدة!</span>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
-          {/* Box 1: Personal Profile */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 border-b pb-2">
-              <User className="w-4 h-4 text-emerald-700" />
-              <span>المعلومات الشخصية والمهنية</span>
+          {/* Change Password Form */}
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
+              <Lock className="w-5 h-5 text-emerald-600" />
+              تغيير كلمة المرور
             </h3>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">الاسم والنسب الكامل</label>
-              <input
-                type="text"
-                required
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-emerald-600 focus:bg-white outline-hidden font-bold"
-              />
-            </div>
+            {passMsg && (
+              <div
+                className={`mb-4 p-3 rounded-xl text-xs flex items-center gap-2 ${
+                  passMsg.type === 'success'
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'bg-rose-50 text-rose-700 border border-rose-200'
+                }`}
+              >
+                {passMsg.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                <span>{passMsg.text}</span>
+              </div>
+            )}
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">البريد الإلكتروني (للتسجيل)</label>
-              <input
-                type="email"
-                disabled
-                value={currentUser?.email || ''}
-                className="w-full px-3 py-2 text-xs bg-slate-100 border border-slate-200 rounded-xl text-slate-500 font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">رقم الهاتف (اختياري للتنبيهات)</label>
-              <input
-                type="text"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="06XXXXXXXX"
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-emerald-600 focus:bg-white outline-hidden font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">المادة والتخصص الافتراضي</label>
-              <input
-                type="text"
-                value={defaultSubject}
-                onChange={(e) => setDefaultSubject(e.target.value)}
-                placeholder="مثال: الرياضيات / علوم الحياة والأرض"
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-emerald-600 focus:bg-white outline-hidden"
-              />
-            </div>
-          </div>
-
-          {/* Box 2: Institutional & Administrative Placement */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 border-b pb-2">
-              <School className="w-4 h-4 text-emerald-700" />
-              <span>التعيين الإداري الرسمي الافتراضي</span>
-            </h3>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">الأكاديمية الجهوية للتربية والتكوين</label>
-              <input
-                type="text"
-                value={academy}
-                onChange={(e) => setAcademy(e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-emerald-600 focus:bg-white outline-hidden"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">المديرية الإقليمية</label>
-              <input
-                type="text"
-                value={directorate}
-                onChange={(e) => setDirectorate(e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-emerald-600 focus:bg-white outline-hidden"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">اسم المؤسسة التعليمية</label>
-              <input
-                type="text"
-                value={schoolName}
-                onChange={(e) => setSchoolName(e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-emerald-600 focus:bg-white outline-hidden font-bold text-[#065F46]"
-              />
-            </div>
-          </div>
-
-        </div>
-
-        {/* Box 3: Signature & School Logo */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
-          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 border-b pb-2">
-            <FileSignature className="w-4 h-4 text-emerald-700" />
-            <span>التوقيع الرقمي وشعار المؤسسة الافتراضي</span>
-          </h3>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            
-            {/* Signature Upload */}
-            <div className="space-y-2">
-              <span className="block text-xs font-semibold text-slate-700">توقيع الأستاذ(ة) (PNG بخلفية شفافة)</span>
-              {signatureUrl ? (
-                <div className="relative border border-slate-200 rounded-xl p-3 bg-slate-50 flex items-center justify-between">
-                  <img src={signatureUrl} alt="Signature" className="h-12 object-contain" />
-                  <button
-                    type="button"
-                    onClick={() => setSignatureUrl('')}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+            <form onSubmit={handlePasswordChange} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  كلمة المرور الجديدة
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 absolute right-3.5 top-3 text-slate-400" />
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                    placeholder="6 أحرف على الأقل"
+                    className="w-full pr-10 pl-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => sigInputRef.current?.click()}
-                  className="w-full py-6 border-2 border-dashed border-slate-200 hover:border-emerald-500 rounded-xl text-center flex flex-col items-center justify-center gap-1.5 text-slate-500 hover:text-emerald-700 transition-colors"
-                >
-                  <Upload className="w-5 h-5" />
-                  <span className="text-xs font-medium">انقر لرفع صورة التوقيع</span>
-                </button>
-              )}
-              <input type="file" ref={sigInputRef} onChange={handleSignatureUpload} accept="image/*" className="hidden" />
-            </div>
+              </div>
 
-            {/* School Logo Upload */}
-            <div className="space-y-2">
-              <span className="block text-xs font-semibold text-slate-700">شعار المؤسسة التعليمية (PNG / JPG)</span>
-              {schoolLogoUrl ? (
-                <div className="relative border border-slate-200 rounded-xl p-3 bg-slate-50 flex items-center justify-between">
-                  <img src={schoolLogoUrl} alt="School Logo" className="h-12 object-contain" />
-                  <button
-                    type="button"
-                    onClick={() => setSchoolLogoUrl('')}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  تأكيد كلمة المرور الجديدة
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 absolute right-3.5 top-3 text-slate-400" />
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    placeholder="أعد إدخال كلمة المرور"
+                    className="w-full pr-10 pl-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => logoInputRef.current?.click()}
-                  className="w-full py-6 border-2 border-dashed border-slate-200 hover:border-emerald-500 rounded-xl text-center flex flex-col items-center justify-center gap-1.5 text-slate-500 hover:text-emerald-700 transition-colors"
-                >
-                  <Upload className="w-5 h-5" />
-                  <span className="text-xs font-medium">انقر لرفع شعار المؤسسة</span>
-                </button>
-              )}
-              <input type="file" ref={logoInputRef} onChange={handleLogoUpload} accept="image/*" className="hidden" />
-            </div>
+              </div>
 
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="submit"
+                  disabled={loadingPass}
+                  className="py-2.5 px-6 rounded-xl bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white text-xs font-bold transition-all shadow-md disabled:opacity-50"
+                >
+                  {loadingPass ? 'جارٍ التغيير...' : 'تحديث كلمة المرور'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
-
-        {/* Submit */}
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-[#065F46] hover:bg-emerald-900 text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
-          >
-            <Save className="w-4 h-4" />
-            <span>حفظ جميع التعديلات</span>
-          </button>
-        </div>
-
-      </form>
-
+      </div>
     </div>
   );
 };

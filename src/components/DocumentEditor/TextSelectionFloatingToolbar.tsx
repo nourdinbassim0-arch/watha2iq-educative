@@ -92,9 +92,12 @@ export const TextSelectionFloatingToolbar: React.FC<TextSelectionFloatingToolbar
         return;
       }
 
-      // Calculate position directly above selection
-      const top = Math.max(10, rect.top + window.scrollY - 52);
-      const left = Math.max(10, rect.left + window.scrollX + rect.width / 2);
+      // Calculate position directly above selection (or below if too close to top)
+      let top = rect.top - 50;
+      if (top < 15) {
+        top = rect.bottom + 10;
+      }
+      const left = Math.max(80, Math.min(window.innerWidth - 80, rect.left + rect.width / 2));
 
       setPosition({ top, left });
       setSelectedText(text);
@@ -206,11 +209,11 @@ export const TextSelectionFloatingToolbar: React.FC<TextSelectionFloatingToolbar
       ref={toolbarRef}
       id="floating-text-selection-toolbar"
       style={{
-        position: 'absolute',
+        position: 'fixed',
         top: `${position.top}px`,
         left: `${position.left}px`,
         transform: 'translateX(-50%)',
-        zIndex: 9999,
+        zIndex: 99999,
       }}
       className="bg-[#1e293b] text-white rounded-2xl shadow-2xl px-2 py-1.5 flex items-center gap-1 border border-slate-700 animate-in fade-in zoom-in-95 duration-100 select-none text-xs"
       onMouseDown={(e) => {

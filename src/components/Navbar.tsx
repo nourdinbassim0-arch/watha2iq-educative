@@ -35,7 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLanguageChange,
   onOpenAuthModal,
 }) => {
-  const { currentUser, isAuthenticated, isOwner, isAdmin, logout } = useAuth();
+  const { user, profile, isAuthenticated, isOwner, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const t = translations[language];
   const isRtl = language === 'ar';
@@ -153,8 +153,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </button>
 
-            {/* Admin link if user has privileges */}
-            {isAdmin && (
+            {/* Owner portal button only visible if role is verified OWNER */}
+            {isOwner && (
               <button
                 id="nav-btn-admin"
                 onClick={() => setActiveTab('admin')}
@@ -165,7 +165,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }`}
               >
                 <Shield className="w-3.5 h-3.5 text-amber-500" />
-                <span>{isOwner ? 'لوحة الإدارة (Owner)' : 'لوحة الإدارة'}</span>
+                <span>لوحة الإدارة (Owner)</span>
               </button>
             )}
           </nav>
@@ -203,7 +203,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <User className="w-3.5 h-3.5 text-emerald-700" />
                   <span className="max-w-[100px] truncate hidden sm:inline">
-                    {currentUser?.fullName?.split(' ')[0] || 'حسابي'}
+                    {profile?.name?.split(' ')[0] || user?.displayName?.split(' ')[0] || 'حسابي'}
                   </span>
                 </button>
 
@@ -277,7 +277,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             {t.navSaved} ({savedCount})
           </button>
-          {isAdmin && (
+          {isOwner && (
             <button
               onClick={() => { setActiveTab('admin'); setIsMobileMenuOpen(false); }}
               className="w-full text-right p-2.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200"

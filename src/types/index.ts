@@ -44,7 +44,7 @@ export type FontFamily =
   | 'calibri' 
   | 'traditional_arabic';
 
-export type UserRole = 'owner' | 'admin' | 'teacher';
+export type UserRole = 'OWNER' | 'ADMIN' | 'TEACHER' | 'owner' | 'admin' | 'teacher';
 
 export interface CustomSignature {
   id: string;
@@ -55,13 +55,13 @@ export interface CustomSignature {
   alignment?: 'right' | 'center' | 'left';
 }
 
-export interface UserProfile {
+export interface User {
   id: string;
+  name: string;
   email: string;
-  fullName: string;
-  role: UserRole;
-  passwordHash?: string;
-  isEmailVerified?: boolean;
+  role: string;
+  status: string;
+  isVerified?: boolean;
   phone?: string;
   academy?: string;
   directorate?: string;
@@ -69,9 +69,24 @@ export interface UserProfile {
   defaultSubject?: string;
   digitalSignatureUrl?: string;
   schoolLogoUrl?: string;
-  createdAt: number;
-  lastLoginAt: number;
-  status: 'active' | 'disabled';
+  createdAt: string | number;
+  lastLogin?: string | number;
+  avatarUrl?: string;
+}
+
+export interface UserProfile extends User {
+  fullName?: string;
+}
+
+export interface ActivityLog {
+  id: string;
+  userId?: string;
+  userEmail?: string;
+  userName?: string;
+  action: string;
+  details?: string;
+  timestamp: string | number | any;
+  ipAddress?: string;
 }
 
 export interface LessonStage {

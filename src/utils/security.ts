@@ -1,52 +1,34 @@
-// Utility for secure password hashing and OTP generation
-
-const SALT_PREFIX = 'wathaiqi_sec_v1_';
+/**
+ * Security & Sanitization utilities for input validation and XSS prevention.
+ */
+import DOMPurify from 'dompurify';
 
 /**
- * Generates a SHA-256 hash of the password with salt
+ * Sanitizes HTML strings to strictly prevent XSS attacks while keeping permitted formatting.
  */
-export async function hashPassword(password: string): Promise<string> {
-  const salted = `${SALT_PREFIX}${password}`;
-  
-  if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
-    try {
-      const msgUint8 = new TextEncoder().encode(salted);
-      const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgUint8);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-      return hashHex;
-    } catch {
-      // Fallback
-    }
-  }
-
-  // Fallback simple deterministic hash
-  let hash = 0;
-  for (let i = 0; i < salted.length; i++) {
-    const char = salted.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash |= 0;
-  }
-  return `hash_${Math.abs(hash).toString(16)}`;
+export function sanitizeHtml(dirtyHtml: string): string {
+  if (!dirtyHtml || typeof dirtyHtml !== 'string') return '';
+  return DOMPurify.sanitize(dirtyHtml, {
+    ALLOWED_TAGS: [
+      'b', 'i', 'em', 'strong', 'a', 'p', 'span', 'br', 'ul', 'ol', 'li',
+      'table', 'thead', 'tbody', 'tr', 'th', 'td', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div'
+    ],
+    ALLOWED_ATTR: ['href', 'style', 'class', 'dir', 'align', 'target', 'rel'],
+  });
 }
 
 /**
- * Verifies if input password matches the stored password hash
+ * Validates an email address format safely.
  */
-export async function verifyPassword(inputPassword: string, storedHash?: string): Promise<boolean> {
-  if (!storedHash) {
-    // If no hash is stored yet (e.g. initial demo accounts or unmigrated),
-    // allow initial setup password or common defaults
-    return inputPassword.length >= 4;
-  }
-  const inputHash = await hashPassword(inputPassword);
-  return inputHash === storedHash;
+export function isValidEmail(email: string): boolean {
+  if (!email || typeof email !== 'string') return false;
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email.trim());
 }
 
 /**
- * Generates a random 6-digit OTP verification code
+ * Validates password strength (minimum 6 characters for Firebase Auth).
  */
-export function generateOtpCode(): string {
-  const randomNum = Math.floor(100000 + Math.random() * 900000);
-  return randomNum.toString();
+export function isStrongPassword(password: string): boolean {
+  return typeof password === 'string' && password.length >= 6;
 }

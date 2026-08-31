@@ -19,24 +19,19 @@ import { DocumentData, DocumentType } from './types';
 import { STARTER_TEMPLATES } from './data/templatesData';
 import { triggerBrowserPrint } from './utils/exportUtils';
 import { translateDocumentContent } from './utils/documentTranslator';
+import { documentService } from './services/documentService';
 import { useAuth } from './context/AuthContext';
 import { Language, translations } from './i18n/translations';
 import { 
   Sparkles, 
-  Heart, 
-  FileSpreadsheet, 
   CheckCircle2, 
-  School, 
-  BookOpen, 
-  Layers, 
-  ShieldCheck 
 } from 'lucide-react';
 
 const STORAGE_KEY = 'wathaiqi_tarbawiya_saved_docs_v2';
 const LANG_STORAGE_KEY = 'wathaiqi_language_selected';
 
 export function App() {
-  const { currentUser, isOwner, isAdmin } = useAuth();
+  const { user, profile, isOwner, isAuthenticated } = useAuth();
 
   const [activeTab, setActiveTab] = useState<
     'home' | 'wizard' | 'editor' | 'templates' | 'saved' | 'gradebook' | 'account' | 'admin' | 'privacy'
@@ -66,16 +61,13 @@ export function App() {
   // Active Document loaded in Editor
   const [currentDoc, setCurrentDoc] = useState<DocumentData>(() => {
     const defaultDoc = { ...STARTER_TEMPLATES[0] };
-    if (currentUser) {
-      defaultDoc.teacherName = currentUser.fullName || defaultDoc.teacherName;
-      defaultDoc.academy = currentUser.academy || defaultDoc.academy;
-      defaultDoc.directorate = currentUser.directorate || defaultDoc.directorate;
-      defaultDoc.schoolName = currentUser.schoolName || defaultDoc.schoolName;
+    if (profile?.name) {
+      defaultDoc.teacherName = profile.name;
     }
     return defaultDoc;
   });
 
-  // Saved documents in LocalStorage
+  // Saved documents: Synchronized with Firestore for authenticated users
   const [savedDocs, setSavedDocs] = useState<DocumentData[]>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
@@ -83,7 +75,7 @@ export function App() {
         return JSON.parse(stored);
       }
     } catch (e) {
-      console.error('Failed to parse saved documents from localStorage', e);
+      console.error('Failed to parse saved documents', e);
     }
     return [STARTER_TEMPLATES[0], STARTER_TEMPLATES[1], STARTER_TEMPLATES[2]];
   });
@@ -98,11 +90,33 @@ export function App() {
   const [isSaving, setIsSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Load User Documents from Firestore when user changes
+  useEffect(() => {
+    if (user?.uid) {
+      documentService.getUserDocuments(user.uid).then((docs) => {
+        if (docs && docs.length > 0) {
+          setSavedDocs(docs);
+        }
+      });
+    }
+  }, [user?.uid]);
+
   // Update HTML document direction and language dynamically
   useEffect(() => {
     document.documentElement.lang = language;
     document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
   }, [language]);
+
+  // Real auto-save to Firestore (with debouncing) when active document changes
+  useEffect(() => {
+    if (!user?.uid || !currentDoc?.id) return;
+
+    const timer = setTimeout(async () => {
+      await documentService.saveDocument(user.uid, currentDoc);
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [currentDoc, user?.uid]);
 
   // Handle Language selection from Gate or Navbar
   const handleSelectLanguage = (newLang: Language) => {
@@ -115,15 +129,6 @@ export function App() {
     // Automatically translate the current active document to match the selected language
     setCurrentDoc((prevDoc) => translateDocumentContent(prevDoc, newLang));
   };
-
-  // Save to localStorage whenever savedDocs updates
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(savedDocs));
-    } catch (e) {
-      console.error('Failed to save documents to localStorage', e);
-    }
-  }, [savedDocs]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -144,7 +149,6 @@ export function App() {
 
   // When a document is created in Wizard
   const handleDocumentCreated = (newDoc: DocumentData) => {
-    // If it's a gradebook, open gradebook view
     if (newDoc.documentType === 'registre_notes') {
       setCurrentDoc(newDoc);
       setActiveTab('gradebook');
@@ -177,19 +181,23 @@ export function App() {
   };
 
   // Direct Export from Templates Gallery or Saved list
-  const handleDirectExport = (doc: DocumentData) => {
-    setCurrentDoc(doc);
+  const handleDirectExport = (docData: DocumentData) => {
+    setCurrentDoc(docData);
     setIsExportModalOpen(true);
   };
 
-  // Save Current Document into savedDocs
-  const handleSaveDocument = () => {
+  // Save Current Document into Firestore and State
+  const handleSaveDocument = async () => {
     setIsSaving(true);
-    const updatedDoc = {
+    const updatedDoc: DocumentData = {
       ...currentDoc,
       updatedAt: Date.now(),
     };
     setCurrentDoc(updatedDoc);
+
+    if (user?.uid) {
+      await documentService.saveDocument(user.uid, updatedDoc);
+    }
 
     setSavedDocs((prev) => {
       const index = prev.findIndex((d) => d.id === updatedDoc.id);
@@ -201,27 +209,33 @@ export function App() {
       return [updatedDoc, ...prev];
     });
 
-    setTimeout(() => {
-      setIsSaving(false);
-      showToast('تم حفظ الوثيقة في خزانة وثائقك المحفوظة بنجاح.');
-    }, 300);
+    setIsSaving(false);
+    showToast('تم حفظ الوثيقة بنجاح.');
   };
 
   // Duplicate a saved document
-  const handleDuplicateDocument = (doc: DocumentData) => {
+  const handleDuplicateDocument = async (docData: DocumentData) => {
     const duplicated: DocumentData = {
-      ...doc,
+      ...docData,
       id: `doc-${Date.now()}`,
-      title: `${doc.title} (نسخة معدلة)`,
+      title: `${docData.title} (نسخة معدلة)`,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
+
+    if (user?.uid) {
+      await documentService.saveDocument(user.uid, duplicated);
+    }
+
     setSavedDocs((prev) => [duplicated, ...prev]);
     showToast('تم إنشاء نسخة مكررة من الوثيقة.');
   };
 
   // Delete a saved document
-  const handleDeleteDocument = (docId: string) => {
+  const handleDeleteDocument = async (docId: string) => {
+    if (user?.uid) {
+      await documentService.deleteDocument(user.uid, docId);
+    }
     setSavedDocs((prev) => prev.filter((d) => d.id !== docId));
     showToast('تم حذف الوثيقة بنجاح.');
   };
@@ -384,9 +398,9 @@ export function App() {
         {activeTab === 'saved' && (
           <SavedDocumentsList
             savedDocs={savedDocs}
-            onEditDocument={(doc) => {
-              setCurrentDoc(doc);
-              if (doc.documentType === 'registre_notes') {
+            onEditDocument={(docData) => {
+              setCurrentDoc(docData);
+              if (docData.documentType === 'registre_notes') {
                 setActiveTab('gradebook');
               } else {
                 setActiveTab('editor');
@@ -401,12 +415,12 @@ export function App() {
 
         {/* TAB 7: ACCOUNT & PROFILE */}
         {activeTab === 'account' && (
-          <AccountPage onNavigateAdmin={() => setActiveTab('admin')} />
+          <AccountPage onBack={() => setActiveTab('home')} />
         )}
 
         {/* TAB 8: ADMIN DASHBOARD */}
         {activeTab === 'admin' && (
-          <AdminDashboard language={language} />
+          <AdminDashboard onBack={() => setActiveTab('home')} />
         )}
 
         {/* TAB 9: PRIVACY & TERMS */}
@@ -447,7 +461,7 @@ export function App() {
             >
               حساب الأستاذ
             </button>
-            {isAdmin && (
+            {isOwner && (
               <button
                 onClick={() => setActiveTab('admin')}
                 className="text-amber-800 hover:text-amber-950 font-bold"
@@ -484,7 +498,6 @@ export function App() {
         <AuthModal
           isOpen={isAuthModalOpen}
           onClose={() => setIsAuthModalOpen(false)}
-          language={language}
         />
       )}
 
@@ -496,7 +509,7 @@ export function App() {
         </div>
       )}
 
-      {/* Initial Language Selection Gate (shown on first visit) */}
+      {/* Initial Language Selection Gate */}
       <InitialLanguageGate
         isOpen={showLanguageGate}
         onSelectLanguage={handleSelectLanguage}
