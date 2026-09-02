@@ -1,41 +1,143 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
-import { HeroBanner } from './components/HeroBanner';
+import { LandingPage } from './components/LandingPage';
+import { Dashboard } from './components/Dashboard';
 import { DocumentWizard } from './components/DocumentWizard';
-import { TemplatesGallery } from './components/TemplatesGallery';
 import { SavedDocumentsList } from './components/SavedDocumentsList';
 import { EditorToolbar } from './components/DocumentEditor/EditorToolbar';
 import { DocumentPreviewCanvas } from './components/DocumentEditor/DocumentPreviewCanvas';
+import { DocumentDesignPanel } from './document-engine';
 import { ExportModal } from './components/ExportModal';
 import { AiAssistantModal } from './components/AiAssistantModal';
 import { AuthModal } from './components/AuthModal';
 import { AdminDashboard } from './components/AdminDashboard';
-import { GradebookManager } from './components/GradebookManager';
 import { AccountPage } from './components/AccountPage';
 import { PrivacyTermsPage } from './components/PrivacyTermsPage';
+import { PricingPage } from './components/PricingPage';
 import { MoroccanOfficialEmblem } from './components/MoroccanOfficialEmblem';
 import { InitialLanguageGate } from './components/InitialLanguageGate';
 import { DocumentData, DocumentType } from './types';
-import { STARTER_TEMPLATES } from './data/templatesData';
 import { triggerBrowserPrint } from './utils/exportUtils';
 import { translateDocumentContent } from './utils/documentTranslator';
 import { documentService } from './services/documentService';
 import { useAuth } from './context/AuthContext';
 import { Language, translations } from './i18n/translations';
-import { 
-  Sparkles, 
-  CheckCircle2, 
-} from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 
 const STORAGE_KEY = 'wathaiqi_tarbawiya_saved_docs_v2';
 const LANG_STORAGE_KEY = 'wathaiqi_language_selected';
 
+// Create a clean default official Moroccan Fiche Pédagogique template
+function createBlankFiche(teacherName?: string): DocumentData {
+  return {
+    id: `doc-${Date.now()}`,
+    title: 'جذاذة درس: مهارات التعبير والإنشاء والتواصل',
+    documentType: 'fiche_pedagogique',
+    level: 'middle',
+    grade: 'الثالثة ثانوي إعدادي',
+    subjectCategory: 'literary_humanities',
+    subjectId: 'arabic',
+    subjectNameAr: 'اللغة العربية',
+    subjectNameFr: 'Langue Arabe',
+    language: 'ar',
+    kingdomHeader: 'المملكة المغربية',
+    ministryHeader: 'وزارة التربية الوطنية والتعليم الأولي والرياضة',
+    academy: 'الأكاديمية الجهوية للتربية والتكوين',
+    directorate: 'المديرية الإقليمية',
+    schoolName: 'مؤسسة التميز التعليمية',
+    teacherName: teacherName || 'أستاذ(ة) المادة',
+    classGroup: '3 / 1 و 3 / 2',
+    academicYear: '2026 - 2027',
+    unitOrModule: 'المجال الاجتماعي والاقتصادي',
+    lessonTitle: 'مهارة كتابة نص سردي متماسك',
+    duration: 'ساعة واحدة (60 دقيقة)',
+    documentDate: new Date().toISOString().split('T')[0],
+    themeColor: 'emerald',
+    showOfficialHeader: true,
+    showSchoolLogo: true,
+    showTeacherSignature: true,
+    showInspectorSignature: true,
+    showFooterInfo: true,
+    showPageNumbers: true,
+    pageFormat: 'a4_portrait',
+    generalCompetences: [
+      'الكفاية التواصلية: توظيف قواعد اللغة والتعبير السليم شفهياً وكتابياً.',
+      'الكفاية المنهجية: اكتساب خطوات التخطيط وتحرير نص سردي مستوفٍ للعناصر.',
+      'الكفاية الثقافية: إغناء الرصيد المعرفي بوقائع وشخصيات من البيئة المغربية.'
+    ],
+    specificObjectives: [
+      'أن يتعرف المتعلم على بنية النص السردي وعناصره الأساسية.',
+      'أن يكتسب القدرة على صياغة حبكة سردية متدرجة.',
+      'أن ينتج المتعلم نصاً سردياً قصيراً محترماً لعلامات الترقيم وسلامة التركيب.'
+    ],
+    didacticResources: [
+      'الكتاب المدرسي المعتمد (المختار في اللغة العربية)',
+      'السبورة الصفية والدفاتر المدرسية',
+      'نصوص سردية منتقاة وأوراق عمل تطبيقية'
+    ],
+    prerequisites: [
+      'مفهوم الجملة الفعلية والاسمية وأدوات الربط.',
+      'علامات الترقيم الأساسية (النقطة، الفاصلة، المزدوجتان).',
+      'القدرة على التعبير الشفهي حول أحداث واقعية.'
+    ],
+    lessonStages: [
+      {
+        id: 'st-1',
+        stageName: 'الوضعية المشكلة والتمهيد',
+        duration: '10 د',
+        teacherActivities: 'طرح وضعية انطلاق واقعية حول حدث مؤثر لاستثارة مكتسبات المتعلمين وتوجيه انتباههم.',
+        studentActivities: 'استحضار المكتسبات السابقة والتفاعل مع الإشكالية المطروحة والمشاركة في صياغة الفرضيات.',
+        evaluationMode: 'مدى دقة استحضار أدوات الربط والقدرة على التعبير السليم.',
+        didacticTools: 'السبورة / أسئلة استكشافية'
+      },
+      {
+        id: 'st-2',
+        stageName: 'مرحلة الاكتشاف وبناء التعلمات',
+        duration: '25 د',
+        teacherActivities: 'عرض نموذج نص سردي، وإبراز عناصره (الشخصيات، الزمان، المكان، العقدة، الحل) وتأطير النقاش.',
+        studentActivities: 'قراءة النص قراءة فاحصة، استخراج المؤشرات الزمنية والمكانية، وتحديد عناصر الحكاية.',
+        evaluationMode: 'القدرة على استخراج عناصر السرد والتمييز بين السرد والوصف.',
+        didacticTools: 'الكتاب المدرسي / أوراق العمل'
+      },
+      {
+        id: 'st-3',
+        stageName: 'مرحلة المأسسة والاستنتاج',
+        duration: '15 د',
+        teacherActivities: 'مساعدة المتعلمين على تركيب خلاصة منهجية شاملة لخطوات كتابة نص سردي وتدوينها.',
+        studentActivities: 'المشاركة الفعالة في صياغة القواعد والخطوات وتدوين الخلاصة التركيبية على الدفاتر.',
+        evaluationMode: 'سلامة الصياغة واستيعاب الخطوات المنهجية للسرد.',
+        didacticTools: 'السبورة الصفية / دفاتر الدروس'
+      },
+      {
+        id: 'st-4',
+        stageName: 'التقويم الإجمالي والاستثمار',
+        duration: '10 د',
+        teacherActivities: 'تكليف المتعلمين بإنتاج فقرة سردية قصيرة تطبيقاً للخطوات المكتسبة وتقديم تغذية راجعة فورية.',
+        studentActivities: 'إنجاز النشاط الفردي، تبادل الإنتاجات للتصحيح الذاتي والتصحيح المتبادل.',
+        evaluationMode: 'احترام خطوات السرد وسلامة اللغة ورسم علامات الترقيم.',
+        didacticTools: 'دفاتر التمارين'
+      }
+    ],
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+}
+
 export function App() {
-  const { user, profile, isOwner, isAuthenticated } = useAuth();
+  const { user, profile, isOwner, isPro, recordDocumentGeneration, isAuthenticated } = useAuth();
 
   const [activeTab, setActiveTab] = useState<
-    'home' | 'wizard' | 'editor' | 'templates' | 'saved' | 'gradebook' | 'account' | 'admin' | 'privacy'
-  >('home');
+    'landing' | 'home' | 'wizard' | 'editor' | 'saved' | 'account' | 'admin' | 'privacy' | 'pricing'
+  >(() => {
+    return isAuthenticated ? 'home' : 'landing';
+  });
+
+  // Keep activeTab in sync with auth state changes
+  useEffect(() => {
+    if (isAuthenticated && activeTab === 'landing') {
+      setActiveTab('home');
+    }
+  }, [isAuthenticated]);
 
   // Initial Language Gate State
   const [showLanguageGate, setShowLanguageGate] = useState<boolean>(() => {
@@ -59,25 +161,20 @@ export function App() {
   const [wizardInitialType, setWizardInitialType] = useState<DocumentType>('fiche_pedagogique');
 
   // Active Document loaded in Editor
-  const [currentDoc, setCurrentDoc] = useState<DocumentData>(() => {
-    const defaultDoc = { ...STARTER_TEMPLATES[0] };
-    if (profile?.name) {
-      defaultDoc.teacherName = profile.name;
-    }
-    return defaultDoc;
-  });
+  const [currentDoc, setCurrentDoc] = useState<DocumentData>(() => createBlankFiche(profile?.name));
 
-  // Saved documents: Synchronized with Firestore for authenticated users
+  // Saved documents: Synchronized strictly with Firestore for authenticated users
   const [savedDocs, setSavedDocs] = useState<DocumentData[]>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch (e) {
       console.error('Failed to parse saved documents', e);
     }
-    return [STARTER_TEMPLATES[0], STARTER_TEMPLATES[1], STARTER_TEMPLATES[2]];
+    return [];
   });
 
   // Editor Zoom level
@@ -86,7 +183,9 @@ export function App() {
   // Modals state
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
+  const [isDesignPanelOpen, setIsDesignPanelOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'register' | 'forgot'>('login');
   const [isSaving, setIsSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -94,10 +193,12 @@ export function App() {
   useEffect(() => {
     if (user?.uid) {
       documentService.getUserDocuments(user.uid).then((docs) => {
-        if (docs && docs.length > 0) {
+        if (docs) {
           setSavedDocs(docs);
         }
       });
+    } else {
+      setSavedDocs([]);
     }
   }, [user?.uid]);
 
@@ -112,7 +213,9 @@ export function App() {
     if (!user?.uid || !currentDoc?.id) return;
 
     const timer = setTimeout(async () => {
+      setIsSaving(true);
       await documentService.saveDocument(user.uid, currentDoc);
+      setIsSaving(false);
     }, 1200);
 
     return () => clearTimeout(timer);
@@ -137,53 +240,54 @@ export function App() {
     }, 3500);
   };
 
-  // Quick Action Handler from Hero
-  const handleHeroStartDoc = (type: DocumentType) => {
-    if (type === 'registre_notes') {
-      setActiveTab('gradebook');
-      return;
-    }
-    setWizardInitialType(type);
+  const openAuth = (mode: 'login' | 'register' = 'login') => {
+    setAuthModalMode(mode);
+    setIsAuthModalOpen(true);
+  };
+
+  // Quick Action Handler to start new document
+  const handleStartNewDoc = () => {
+    setWizardInitialType('fiche_pedagogique');
     setActiveTab('wizard');
   };
 
   // When a document is created in Wizard
   const handleDocumentCreated = (newDoc: DocumentData) => {
-    if (newDoc.documentType === 'registre_notes') {
-      setCurrentDoc(newDoc);
-      setActiveTab('gradebook');
-      showToast('تم إنشاء سجل النقط والتقويم بنجاح.');
-      return;
-    }
-
+    // 1. Immediately set active document and switch to editor tab
     setCurrentDoc(newDoc);
     setActiveTab('editor');
-    showToast('تم إنشاء الوثيقة بنجاح! يمكنك الآن تعديلها ومعاينتها وتحميلها.');
-  };
+    showToast('تم إنشاء الوثيقة التربوية بنجاح! يمكنك الآن تعديلها ومعاينتها وتحميلها.');
 
-  // When selecting a template to edit
-  const handleSelectTemplate = (tpl: DocumentData) => {
-    const cloned: DocumentData = {
-      ...tpl,
-      id: `doc-${Date.now()}`,
-      title: tpl.title,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-    setCurrentDoc(cloned);
+    // 2. Perform usage tracking and Firestore saving asynchronously in background
+    if (isAuthenticated) {
+      if (!isPro && !isOwner) {
+        recordDocumentGeneration().catch((err) => {
+          console.warn('Daily usage record notice:', err);
+        });
+      }
 
-    if (cloned.documentType === 'registre_notes') {
-      setActiveTab('gradebook');
-    } else {
-      setActiveTab('editor');
+      if (user?.uid) {
+        documentService.saveDocument(user.uid, newDoc)
+          .then(() => {
+            setSavedDocs((prev) => [newDoc, ...prev.filter(d => d.id !== newDoc.id)]);
+          })
+          .catch((err) => {
+            console.warn('Auto-save to cloud notice:', err);
+          });
+      }
     }
-    showToast('تم فتح النموذج وجاهز للتعديل والتحميل.');
   };
 
-  // Direct Export from Templates Gallery or Saved list
+  // Direct Export from Dashboard or Saved list
   const handleDirectExport = (docData: DocumentData) => {
     setCurrentDoc(docData);
     setIsExportModalOpen(true);
+  };
+
+  // Open Document in Editor
+  const handleOpenDocument = (docData: DocumentData) => {
+    setCurrentDoc(docData);
+    setActiveTab('editor');
   };
 
   // Save Current Document into Firestore and State
@@ -264,82 +368,38 @@ export function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         savedCount={savedDocs.length}
-        onQuickNew={() => {
-          setWizardInitialType('fiche_pedagogique');
-          setActiveTab('wizard');
-        }}
+        onQuickNew={handleStartNewDoc}
         language={language}
         onLanguageChange={handleSelectLanguage}
-        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onOpenAuthModal={openAuth}
       />
 
-      {/* Dynamic Main Body Content based on activeTab */}
+      {/* Main Content Router */}
       <main className="flex-1">
         
-        {/* TAB 1: HOME */}
-        {activeTab === 'home' && (
-          <div>
-            <HeroBanner
-              onStartDoc={handleHeroStartDoc}
-              onStartCreate={handleHeroStartDoc}
-              onBrowseTemplates={() => setActiveTab('templates')}
-              onExploreTemplates={() => setActiveTab('templates')}
-              onViewSaved={() => setActiveTab('saved')}
-            />
+        {/* PUBLIC UNPROTECTED TAB: LANDING */}
+        {!isAuthenticated && activeTab === 'landing' && (
+          <LandingPage
+            onOpenLogin={() => openAuth('login')}
+            onOpenRegister={() => openAuth('register')}
+            onViewPricing={() => setActiveTab('pricing')}
+            onViewPrivacy={() => setActiveTab('privacy')}
+            language={language}
+          />
+        )}
 
-            {/* Quick Template Picks on Homepage */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-[#D97706]" />
-                    <span>نماذج تربوية مغربية سريعة الإنجاز</span>
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-1">
-                    اختر نموذجاً معتمداً وابدأ تعديله مباشرة بضغطة زر
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => setActiveTab('templates')}
-                  className="text-xs font-bold text-[#065F46] hover:text-emerald-900 flex items-center gap-1"
-                >
-                  <span>عرض جميع النماذج ({STARTER_TEMPLATES.length})</span>
-                  <span>←</span>
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {STARTER_TEMPLATES.slice(0, 4).map((tpl) => (
-                  <div
-                    key={tpl.id}
-                    className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between group"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 mb-2">
-                        <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
-                          {tpl.subjectNameAr}
-                        </span>
-                        <span>{tpl.grade}</span>
-                      </div>
-                      <h3 className="font-bold text-xs text-slate-900 line-clamp-2 group-hover:text-[#065F46] transition-colors">
-                        {tpl.title}
-                      </h3>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2">
-                      <button
-                        onClick={() => handleSelectTemplate(tpl)}
-                        className="flex-1 py-1.5 bg-[#065F46] hover:bg-emerald-900 text-white rounded-xl text-xs font-bold text-center transition-colors"
-                      >
-                        تعديل وتحميل
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+        {/* AUTHENTICATED TAB 1: DASHBOARD */}
+        {isAuthenticated && (activeTab === 'home' || activeTab === 'landing') && (
+          <Dashboard
+            documents={savedDocs}
+            onStartNewDocument={handleStartNewDoc}
+            onOpenDocument={handleOpenDocument}
+            onDuplicateDocument={handleDuplicateDocument}
+            onDeleteDocument={handleDeleteDocument}
+            onExportDocument={handleDirectExport}
+            onViewAccount={() => setActiveTab('account')}
+            onViewPricing={() => setActiveTab('pricing')}
+          />
         )}
 
         {/* TAB 2: WIZARD */}
@@ -347,13 +407,13 @@ export function App() {
           <DocumentWizard
             initialType={wizardInitialType}
             onDocumentCreated={handleDocumentCreated}
-            onCancel={() => setActiveTab('home')}
+            onCancel={() => setActiveTab(isAuthenticated ? 'home' : 'landing')}
           />
         )}
 
-        {/* TAB 3: EDITOR CANVAS */}
+        {/* TAB 3: REAL EDITOR CANVAS */}
         {activeTab === 'editor' && (
-          <div className="flex flex-col min-h-[calc(100vh-4rem)]">
+          <div className="flex flex-col min-h-[calc(100vh-4rem)] relative">
             <EditorToolbar
               documentData={currentDoc}
               zoom={zoom}
@@ -362,70 +422,70 @@ export function App() {
               onPrint={handlePrint}
               onSave={handleSaveDocument}
               onOpenAiAssistant={() => setIsAiAssistantOpen(true)}
+              onOpenCustomizer={() => setIsDesignPanelOpen((prev) => !prev)}
               onUpdateField={handleUpdateCurrentDocField}
               isSaving={isSaving}
             />
 
-            <div id="canvas-scroll-wrapper" className="flex-1 overflow-y-auto bg-slate-200/70">
-              <DocumentPreviewCanvas
-                documentData={currentDoc}
-                isEditable={true}
-                onUpdateField={handleUpdateCurrentDocField}
-                zoom={zoom}
-              />
+            <div className="flex-1 flex overflow-hidden relative">
+              <div id="canvas-scroll-wrapper" className="flex-1 overflow-y-auto bg-slate-200/70">
+                <DocumentPreviewCanvas
+                  documentData={currentDoc}
+                  isEditable={true}
+                  onUpdateField={handleUpdateCurrentDocField}
+                  zoom={zoom}
+                />
+              </div>
+
+              {/* Design & Decorations Panel Drawer */}
+              {isDesignPanelOpen && (
+                <div className="w-80 sm:w-96 border-s border-slate-200 bg-white shadow-xl z-20 overflow-y-auto no-print">
+                  <DocumentDesignPanel
+                    documentData={currentDoc}
+                    onUpdateField={handleUpdateCurrentDocField}
+                    onClose={() => setIsDesignPanelOpen(false)}
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* TAB 4: GRADEBOOK & EVALUATION */}
-        {activeTab === 'gradebook' && (
-          <GradebookManager
-            documentData={currentDoc}
-            onUpdateDocument={(updated) => setCurrentDoc(updated)}
-            language={language}
-          />
-        )}
-
-        {/* TAB 5: TEMPLATES GALLERY */}
-        {activeTab === 'templates' && (
-          <TemplatesGallery
-            onSelectTemplate={handleSelectTemplate}
-            onDirectExport={handleDirectExport}
-          />
-        )}
-
-        {/* TAB 6: SAVED DOCUMENTS */}
-        {activeTab === 'saved' && (
+        {/* AUTHENTICATED TAB 4: SAVED DOCUMENTS */}
+        {isAuthenticated && activeTab === 'saved' && (
           <SavedDocumentsList
+            documents={savedDocs}
             savedDocs={savedDocs}
-            onEditDocument={(docData) => {
-              setCurrentDoc(docData);
-              if (docData.documentType === 'registre_notes') {
-                setActiveTab('gradebook');
-              } else {
-                setActiveTab('editor');
-              }
-            }}
+            onEditDocument={handleOpenDocument}
+            onOpenDocument={handleOpenDocument}
             onDuplicateDocument={handleDuplicateDocument}
             onDeleteDocument={handleDeleteDocument}
             onDirectExport={handleDirectExport}
-            onStartNewDocument={() => setActiveTab('wizard')}
+            onStartNewDocument={handleStartNewDoc}
           />
         )}
 
-        {/* TAB 7: ACCOUNT & PROFILE */}
-        {activeTab === 'account' && (
+        {/* AUTHENTICATED TAB 5: ACCOUNT & PROFILE */}
+        {isAuthenticated && activeTab === 'account' && (
           <AccountPage onBack={() => setActiveTab('home')} />
         )}
 
-        {/* TAB 8: ADMIN DASHBOARD */}
-        {activeTab === 'admin' && (
+        {/* AUTHENTICATED TAB 6: ADMIN DASHBOARD (OWNER ONLY) */}
+        {isAuthenticated && activeTab === 'admin' && (
           <AdminDashboard onBack={() => setActiveTab('home')} />
         )}
 
-        {/* TAB 9: PRIVACY & TERMS */}
+        {/* GENERAL TAB: PRIVACY & TERMS */}
         {activeTab === 'privacy' && (
           <PrivacyTermsPage language={language} />
+        )}
+
+        {/* GENERAL TAB: PRICING & PLANS */}
+        {activeTab === 'pricing' && (
+          <PricingPage
+            onBack={() => setActiveTab(isAuthenticated ? 'home' : 'landing')}
+            onOpenAuthModal={() => openAuth('register')}
+          />
         )}
 
       </main>
@@ -444,23 +504,32 @@ export function App() {
 
           <div className="flex items-center gap-4 text-xs font-semibold">
             <button
+              onClick={() => setActiveTab('pricing')}
+              className="text-[#065F46] hover:text-emerald-900 font-bold transition-colors"
+            >
+              الاشتراكات والأسعار
+            </button>
+            <button
               onClick={() => setActiveTab('privacy')}
               className="hover:text-emerald-800 transition-colors"
             >
               سياسة الخصوصية والشروط
             </button>
-            <button
-              onClick={() => setActiveTab('templates')}
-              className="hover:text-emerald-800 transition-colors"
-            >
-              مكتبة الوثائق
-            </button>
-            <button
-              onClick={() => setActiveTab('account')}
-              className="hover:text-emerald-800 transition-colors"
-            >
-              حساب الأستاذ
-            </button>
+            {isAuthenticated ? (
+              <button
+                onClick={() => setActiveTab('account')}
+                className="hover:text-emerald-800 transition-colors"
+              >
+                حساب الأستاذ
+              </button>
+            ) : (
+              <button
+                onClick={() => openAuth('login')}
+                className="hover:text-emerald-800 transition-colors font-bold text-[#065F46]"
+              >
+                تسجيل الدخول
+              </button>
+            )}
             {isOwner && (
               <button
                 onClick={() => setActiveTab('admin')}
@@ -497,6 +566,7 @@ export function App() {
       {isAuthModalOpen && (
         <AuthModal
           isOpen={isAuthModalOpen}
+          initialMode={authModalMode}
           onClose={() => setIsAuthModalOpen(false)}
         />
       )}

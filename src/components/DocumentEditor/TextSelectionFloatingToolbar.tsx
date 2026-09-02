@@ -46,14 +46,23 @@ export const TextSelectionFloatingToolbar: React.FC<TextSelectionFloatingToolbar
   ];
 
   const fontSizes = [
-    { label: 'صغير جداً (9pt)', size: '11px' },
-    { label: 'صغير (10pt)', size: '13px' },
-    { label: 'عادي (12pt)', size: '15px' },
-    { label: 'متوسط (14pt)', size: '18px' },
-    { label: 'كبير (16pt)', size: '21px' },
-    { label: 'كبير جداً (18pt)', size: '24px' },
-    { label: 'عنوان بارز (24pt)', size: '30px' },
-    { label: 'عنوان رئيسي (30pt)', size: '38px' },
+    { label: '8 pt', size: '10.5px' },
+    { label: '9 pt', size: '12px' },
+    { label: '10 pt', size: '13.3px' },
+    { label: '11 pt', size: '14.6px' },
+    { label: '12 pt (افتراضي)', size: '16px' },
+    { label: '14 pt', size: '18.6px' },
+    { label: '16 pt', size: '21.3px' },
+    { label: '18 pt', size: '24px' },
+    { label: '20 pt', size: '26.6px' },
+    { label: '22 pt', size: '29.3px' },
+    { label: '24 pt', size: '32px' },
+    { label: '28 pt', size: '37.3px' },
+    { label: '32 pt', size: '42.6px' },
+    { label: '36 pt', size: '48px' },
+    { label: '48 pt', size: '64px' },
+    { label: '60 pt', size: '80px' },
+    { label: '72 pt', size: '96px' },
   ];
 
   useEffect(() => {

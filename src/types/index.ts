@@ -31,7 +31,47 @@ export type PageFormat =
   | 'phone_story'
   | 'square';
 
-export type ExportFormat = 'pdf' | 'docx' | 'png' | 'jpg' | 'html' | 'rtf';
+export type ExportFormat = 'pdf' | 'png' | 'jpg';
+
+export type UserPlan = 'FREE' | 'PRO';
+
+export type SubscriptionStatus = 
+  | 'active' 
+  | 'past_due' 
+  | 'canceled' 
+  | 'trialing' 
+  | 'incomplete' 
+  | 'none';
+
+export interface UserSubscription {
+  uid: string;
+  provider?: string;
+  customerId?: string;
+  subscriptionId?: string;
+  plan: UserPlan;
+  status: SubscriptionStatus;
+  currentPeriodStart?: any;
+  currentPeriodEnd?: any;
+  cancelAtPeriodEnd?: boolean;
+  updatedAt?: any;
+}
+
+export interface UserDailyUsage {
+  uid: string;
+  date: string; // YYYY-MM-DD
+  used: number;
+  limit: number;
+  updatedAt?: any;
+}
+
+export interface PlatformSettings {
+  freeDailyLimit: number;
+  platformNameAr: string;
+  platformNameFr: string;
+  maintenanceMode: boolean;
+  proPriceMad: number;
+  supportEmail: string;
+}
 
 export type FontFamily = 
   | 'tajawal' 
@@ -61,6 +101,7 @@ export interface User {
   email: string;
   role: string;
   status: string;
+  plan?: UserPlan;
   isVerified?: boolean;
   phone?: string;
   academy?: string;

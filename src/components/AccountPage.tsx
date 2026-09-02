@@ -149,6 +149,17 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onBack }) => {
               </div>
 
               <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
+                <span>الباقة الحالية:</span>
+                <span className={`px-2.5 py-1 rounded-full font-bold text-[11px] ${
+                  profile?.plan === 'PRO' || profile?.role === 'OWNER'
+                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                    : 'bg-slate-100 text-slate-700'
+                }`}>
+                  {profile?.plan === 'PRO' || profile?.role === 'OWNER' ? 'الاحترافية (PRO)' : 'الأساسية (FREE)'}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
                 <span>حالة البريد:</span>
                 {user?.emailVerified ? (
                   <span className="flex items-center gap-1 text-emerald-600 font-medium">
@@ -161,6 +172,16 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onBack }) => {
                     غير مؤكد
                   </span>
                 )}
+              </div>
+            </div>
+
+            {/* Plan Usage Info */}
+            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 text-right">
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="font-bold text-slate-700 dark:text-slate-300">الاستخدام اليومي:</span>
+                <span className="font-mono text-emerald-700 dark:text-emerald-400 font-bold">
+                  {profile?.plan === 'PRO' || profile?.role === 'OWNER' ? 'غير محدود (PRO)' : '3 وثائق / يومياً'}
+                </span>
               </div>
             </div>
 

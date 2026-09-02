@@ -2,28 +2,28 @@ import React, { useState } from 'react';
 import { 
   FileText, 
   FolderHeart, 
-  BookOpen, 
   PlusCircle, 
   Shield,
   User,
   LogOut,
   LogIn,
-  Globe,
-  FileSpreadsheet,
+  UserPlus,
   Menu,
-  X
+  X,
+  Sparkles,
+  Zap
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Language, translations } from '../i18n/translations';
 
 interface NavbarProps {
-  activeTab: 'home' | 'wizard' | 'editor' | 'templates' | 'saved' | 'gradebook' | 'account' | 'admin' | 'privacy';
-  setActiveTab: (tab: 'home' | 'wizard' | 'editor' | 'templates' | 'saved' | 'gradebook' | 'account' | 'admin' | 'privacy') => void;
+  activeTab: 'landing' | 'home' | 'wizard' | 'editor' | 'saved' | 'account' | 'admin' | 'privacy' | 'pricing';
+  setActiveTab: (tab: 'landing' | 'home' | 'wizard' | 'editor' | 'saved' | 'account' | 'admin' | 'privacy' | 'pricing') => void;
   savedCount: number;
   onQuickNew: () => void;
   language: Language;
   onLanguageChange: (lang: Language) => void;
-  onOpenAuthModal: () => void;
+  onOpenAuthModal: (mode?: 'login' | 'register') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -35,10 +35,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLanguageChange,
   onOpenAuthModal,
 }) => {
-  const { user, profile, isAuthenticated, isOwner, logout } = useAuth();
+  const { user, profile, isPro, dailyUsage, platformSettings, isAuthenticated, isOwner, loginDemo, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const t = translations[language];
   const isRtl = language === 'ar';
+
+  const dailyLimit = platformSettings.freeDailyLimit || 3;
+  const remainingToday = Math.max(0, dailyLimit - (dailyUsage?.used || 0));
 
   return (
     <header className="sticky top-0 z-40 bg-[#FDFCFB]/95 backdrop-blur-md border-b border-[#E5E7EB] shadow-2xs" dir={isRtl ? 'rtl' : 'ltr'}>
@@ -48,7 +51,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Brand Logo & Name */}
           <div 
             id="brand-logo-container"
-            onClick={() => setActiveTab('home')}
+            onClick={() => setActiveTab(isAuthenticated ? 'home' : 'landing')}
             className="flex items-center gap-3 cursor-pointer group select-none shrink-0"
           >
             <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-[#065F46] border border-[#044735] text-white shadow-md shadow-[#065F46]/20 group-hover:scale-105 transition-transform duration-200">
@@ -65,114 +68,167 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="bg-[#ECFDF5] text-[#065F46] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[#A7F3D0] hidden sm:inline">
                   {t.moroccanTeacherSpace}
                 </span>
+                {isPro && (
+                  <span className="bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full shadow-2xs flex items-center gap-0.5">
+                    <Zap className="w-2.5 h-2.5 fill-current" />
+                    <span>PRO</span>
+                  </span>
+                )}
               </div>
             </div>
           </div>
 
           {/* Navigation Links (Desktop) */}
           <nav className="hidden lg:flex items-center gap-1 text-xs">
-            <button
-              id="nav-btn-home"
-              onClick={() => setActiveTab('home')}
-              className={`px-3 py-2 rounded-xl font-semibold transition-all ${
-                activeTab === 'home'
-                  ? 'bg-[#ECFDF5] text-[#065F46] font-bold border border-[#A7F3D0]/70'
-                  : 'text-[#4B5563] hover:text-[#1F2937] hover:bg-[#F3F4F6]'
-              }`}
-            >
-              {t.navHome}
-            </button>
+            {isAuthenticated ? (
+              // Authenticated Links
+              <>
+                <button
+                  id="nav-btn-home"
+                  onClick={() => setActiveTab('home')}
+                  className={`px-3.5 py-2 rounded-xl font-semibold transition-all ${
+                    activeTab === 'home'
+                      ? 'bg-[#ECFDF5] text-[#065F46] font-bold border border-[#A7F3D0]/70'
+                      : 'text-[#4B5563] hover:text-[#1F2937] hover:bg-[#F3F4F6]'
+                  }`}
+                >
+                  لوحة التحكم
+                </button>
 
-            <button
-              id="nav-btn-wizard"
-              onClick={() => setActiveTab('wizard')}
-              className={`px-3 py-2 rounded-xl font-semibold flex items-center gap-1 transition-all ${
-                activeTab === 'wizard'
-                  ? 'bg-[#ECFDF5] text-[#065F46] font-bold border border-[#A7F3D0]/70'
-                  : 'text-[#4B5563] hover:text-[#1F2937] hover:bg-[#F3F4F6]'
-              }`}
-            >
-              <PlusCircle className="w-3.5 h-3.5 text-[#065F46]" />
-              <span>{t.navNewDoc}</span>
-            </button>
+                <button
+                  id="nav-btn-wizard"
+                  onClick={() => {
+                    onQuickNew();
+                    setActiveTab('wizard');
+                  }}
+                  className={`px-3.5 py-2 rounded-xl font-semibold flex items-center gap-1 transition-all ${
+                    activeTab === 'wizard'
+                      ? 'bg-[#ECFDF5] text-[#065F46] font-bold border border-[#A7F3D0]/70'
+                      : 'text-[#4B5563] hover:text-[#1F2937] hover:bg-[#F3F4F6]'
+                  }`}
+                >
+                  <PlusCircle className="w-3.5 h-3.5 text-[#065F46]" />
+                  <span>{t.navNewDoc}</span>
+                </button>
 
-            <button
-              id="nav-btn-editor"
-              onClick={() => setActiveTab('editor')}
-              className={`px-3 py-2 rounded-xl font-semibold flex items-center gap-1 transition-all ${
-                activeTab === 'editor'
-                  ? 'bg-[#ECFDF5] text-[#065F46] font-bold border border-[#A7F3D0]/70'
-                  : 'text-[#4B5563] hover:text-[#1F2937] hover:bg-[#F3F4F6]'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5 text-[#065F46]" />
-              <span>{t.navEditor}</span>
-            </button>
+                <button
+                  id="nav-btn-saved"
+                  onClick={() => setActiveTab('saved')}
+                  className={`px-3.5 py-2 rounded-xl font-semibold flex items-center gap-1.5 transition-all ${
+                    activeTab === 'saved'
+                      ? 'bg-[#ECFDF5] text-[#065F46] font-bold border border-[#A7F3D0]/70'
+                      : 'text-[#4B5563] hover:text-[#1F2937] hover:bg-[#F3F4F6]'
+                  }`}
+                >
+                  <FolderHeart className="w-3.5 h-3.5 text-rose-600" />
+                  <span>وثائقي</span>
+                  {savedCount > 0 && (
+                    <span className="bg-[#065F46] text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">
+                      {savedCount}
+                    </span>
+                  )}
+                </button>
 
-            <button
-              id="nav-btn-gradebook"
-              onClick={() => setActiveTab('gradebook')}
-              className={`px-3 py-2 rounded-xl font-semibold flex items-center gap-1 transition-all ${
-                activeTab === 'gradebook'
-                  ? 'bg-[#ECFDF5] text-[#065F46] font-bold border border-[#A7F3D0]/70'
-                  : 'text-[#4B5563] hover:text-[#1F2937] hover:bg-[#F3F4F6]'
-              }`}
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-[#065F46]" />
-              <span>{t.navGradebook}</span>
-            </button>
+                <button
+                  id="nav-btn-pricing"
+                  onClick={() => setActiveTab('pricing')}
+                  className={`px-3.5 py-2 rounded-xl font-semibold flex items-center gap-1 transition-all ${
+                    activeTab === 'pricing'
+                      ? 'bg-emerald-100 text-emerald-900 font-bold border border-emerald-300'
+                      : 'text-[#4B5563] hover:text-[#1F2937] hover:bg-[#F3F4F6]'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>الباقات والأسعار</span>
+                </button>
 
-            <button
-              id="nav-btn-templates"
-              onClick={() => setActiveTab('templates')}
-              className={`px-3 py-2 rounded-xl font-semibold flex items-center gap-1 transition-all ${
-                activeTab === 'templates'
-                  ? 'bg-[#FEF3C7] text-[#92400E] font-bold border border-[#FDE68A]'
-                  : 'text-[#4B5563] hover:text-[#1F2937] hover:bg-[#F3F4F6]'
-              }`}
-            >
-              <BookOpen className="w-3.5 h-3.5 text-[#D97706]" />
-              <span>{t.navTemplates}</span>
-            </button>
+                {/* Owner link */}
+                {isOwner && (
+                  <button
+                    id="nav-btn-admin"
+                    onClick={() => setActiveTab('admin')}
+                    className={`px-3 py-2 rounded-xl font-bold flex items-center gap-1 transition-all ${
+                      activeTab === 'admin'
+                        ? 'bg-slate-900 text-amber-300 shadow-xs'
+                        : 'text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200'
+                    }`}
+                  >
+                    <Shield className="w-3.5 h-3.5 text-amber-500" />
+                    <span>لوحة الإدارة</span>
+                  </button>
+                )}
+              </>
+            ) : (
+              // Public Unauthenticated Links
+              <>
+                <button
+                  onClick={() => setActiveTab('landing')}
+                  className={`px-3.5 py-2 rounded-xl font-semibold transition-all ${
+                    activeTab === 'landing'
+                      ? 'bg-[#ECFDF5] text-[#065F46] font-bold border border-[#A7F3D0]/70'
+                      : 'text-[#4B5563] hover:text-[#1F2937] hover:bg-[#F3F4F6]'
+                  }`}
+                >
+                  الرئيسية
+                </button>
 
-            <button
-              id="nav-btn-saved"
-              onClick={() => setActiveTab('saved')}
-              className={`px-3 py-2 rounded-xl font-semibold flex items-center gap-1.5 transition-all ${
-                activeTab === 'saved'
-                  ? 'bg-[#ECFDF5] text-[#065F46] font-bold border border-[#A7F3D0]/70'
-                  : 'text-[#4B5563] hover:text-[#1F2937] hover:bg-[#F3F4F6]'
-              }`}
-            >
-              <FolderHeart className="w-3.5 h-3.5 text-rose-600" />
-              <span>{t.navSaved}</span>
-              {savedCount > 0 && (
-                <span className="bg-[#065F46] text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">
-                  {savedCount}
-                </span>
-              )}
-            </button>
+                <button
+                  onClick={() => {
+                    onQuickNew();
+                    setActiveTab('wizard');
+                  }}
+                  className={`px-3.5 py-2 rounded-xl font-semibold flex items-center gap-1 transition-all ${
+                    activeTab === 'wizard'
+                      ? 'bg-[#ECFDF5] text-[#065F46] font-bold border border-[#A7F3D0]/70'
+                      : 'text-[#4B5563] hover:text-[#1F2937] hover:bg-[#F3F4F6]'
+                  }`}
+                >
+                  <PlusCircle className="w-3.5 h-3.5 text-[#065F46]" />
+                  <span>إنشاء وثيقة</span>
+                </button>
 
-            {/* Owner portal button only visible if role is verified OWNER */}
-            {isOwner && (
-              <button
-                id="nav-btn-admin"
-                onClick={() => setActiveTab('admin')}
-                className={`px-3 py-2 rounded-xl font-bold flex items-center gap-1 transition-all ${
-                  activeTab === 'admin'
-                    ? 'bg-slate-900 text-amber-300 shadow-xs'
-                    : 'text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200'
-                }`}
-              >
-                <Shield className="w-3.5 h-3.5 text-amber-500" />
-                <span>لوحة الإدارة (Owner)</span>
-              </button>
+                <button
+                  onClick={() => setActiveTab('pricing')}
+                  className={`px-3.5 py-2 rounded-xl font-semibold transition-all ${
+                    activeTab === 'pricing'
+                      ? 'bg-[#ECFDF5] text-[#065F46] font-bold border border-[#A7F3D0]/70'
+                      : 'text-[#4B5563] hover:text-[#1F2937] hover:bg-[#F3F4F6]'
+                  }`}
+                >
+                  الاشتراكات والأسعار
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('privacy')}
+                  className={`px-3.5 py-2 rounded-xl font-semibold transition-all ${
+                    activeTab === 'privacy'
+                      ? 'bg-[#ECFDF5] text-[#065F46] font-bold border border-[#A7F3D0]/70'
+                      : 'text-[#4B5563] hover:text-[#1F2937] hover:bg-[#F3F4F6]'
+                  }`}
+                >
+                  الشروط والخصوصية
+                </button>
+              </>
             )}
           </nav>
 
-          {/* Right Action Tools: Language & User Account */}
+          {/* Right Action Tools: Plan Badge, Language & User Account */}
           <div className="flex items-center gap-2">
             
+            {/* Free Usage Counter Badge for Free Users */}
+            {!isPro && isAuthenticated && (
+              <button
+                onClick={() => setActiveTab('pricing')}
+                title="الوثائق المتبقية اليوم مجاناً"
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-bold hover:bg-emerald-50 hover:border-emerald-200 transition-colors"
+              >
+                <span className="text-slate-500">المتبقي اليوم:</span>
+                <span className={remainingToday === 0 ? 'text-rose-600 font-black' : 'text-emerald-700 font-black'}>
+                  {remainingToday}/{dailyLimit}
+                </span>
+              </button>
+            )}
+
             {/* Language Switcher */}
             <div className="flex items-center bg-[#F3F4F6] p-0.5 rounded-xl border border-[#E5E7EB] text-[11px] font-bold">
               {(['ar', 'fr', 'en'] as const).map((l) => (
@@ -190,9 +246,15 @@ export const Navbar: React.FC<NavbarProps> = ({
               ))}
             </div>
 
-            {/* User Account / Login Button */}
+            {/* User Account or Auth Buttons */}
             {isAuthenticated ? (
               <div className="flex items-center gap-1.5">
+                {user?.uid?.startsWith('demo-') && (
+                  <span className="hidden md:inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-[10px] font-black shadow-2xs">
+                    <Sparkles className="w-3 h-3 text-amber-700" />
+                    <span>حساب تجريبي (PRO)</span>
+                  </span>
+                )}
                 <button
                   onClick={() => setActiveTab('account')}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
@@ -216,13 +278,31 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               </div>
             ) : (
-              <button
-                onClick={onOpenAuthModal}
-                className="inline-flex items-center gap-1 px-3.5 py-1.5 bg-[#065F46] hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition-colors shadow-2xs"
-              >
-                <LogIn className="w-3.5 h-3.5" />
-                <span>{t.login}</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  id="nav-btn-demo-quick"
+                  onClick={() => loginDemo('TEACHER')}
+                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 rounded-xl text-xs font-black transition-all shadow-xs border border-amber-600/30 cursor-pointer"
+                  title="الدخول الفوري بحساب أستاذ تجريبي كامل الصلاحيات"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>حساب تجريبي</span>
+                </button>
+                <button
+                  onClick={() => onOpenAuthModal('login')}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-bold transition-colors"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>تسجيل الدخول</span>
+                </button>
+                <button
+                  onClick={() => onOpenAuthModal('register')}
+                  className="inline-flex items-center gap-1 px-3.5 py-1.5 bg-[#065F46] hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition-colors shadow-2xs"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>إنشاء حساب</span>
+                </button>
+              </div>
             )}
 
             {/* Mobile Menu Trigger */}
@@ -241,56 +321,95 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Mobile Drawer */}
       {isMobileMenuOpen && (
         <div className="lg:hidden border-t border-slate-200 bg-white p-4 space-y-2 text-xs font-bold">
-          <button
-            onClick={() => { setActiveTab('home'); setIsMobileMenuOpen(false); }}
-            className="w-full text-right p-2.5 rounded-xl hover:bg-slate-50"
-          >
-            {t.navHome}
-          </button>
-          <button
-            onClick={() => { setActiveTab('wizard'); setIsMobileMenuOpen(false); }}
-            className="w-full text-right p-2.5 rounded-xl hover:bg-slate-50"
-          >
-            {t.navNewDoc}
-          </button>
-          <button
-            onClick={() => { setActiveTab('editor'); setIsMobileMenuOpen(false); }}
-            className="w-full text-right p-2.5 rounded-xl hover:bg-slate-50"
-          >
-            {t.navEditor}
-          </button>
-          <button
-            onClick={() => { setActiveTab('gradebook'); setIsMobileMenuOpen(false); }}
-            className="w-full text-right p-2.5 rounded-xl hover:bg-slate-50"
-          >
-            {t.navGradebook}
-          </button>
-          <button
-            onClick={() => { setActiveTab('templates'); setIsMobileMenuOpen(false); }}
-            className="w-full text-right p-2.5 rounded-xl hover:bg-slate-50"
-          >
-            {t.navTemplates}
-          </button>
-          <button
-            onClick={() => { setActiveTab('saved'); setIsMobileMenuOpen(false); }}
-            className="w-full text-right p-2.5 rounded-xl hover:bg-slate-50"
-          >
-            {t.navSaved} ({savedCount})
-          </button>
-          {isOwner && (
-            <button
-              onClick={() => { setActiveTab('admin'); setIsMobileMenuOpen(false); }}
-              className="w-full text-right p-2.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200"
-            >
-              {t.navAdmin}
-            </button>
+          {isAuthenticated ? (
+            <>
+              <button
+                onClick={() => { setActiveTab('home'); setIsMobileMenuOpen(false); }}
+                className="w-full text-right p-2.5 rounded-xl hover:bg-slate-50"
+              >
+                لوحة التحكم
+              </button>
+              <button
+                onClick={() => { onQuickNew(); setActiveTab('wizard'); setIsMobileMenuOpen(false); }}
+                className="w-full text-right p-2.5 rounded-xl hover:bg-slate-50"
+              >
+                {t.navNewDoc}
+              </button>
+              <button
+                onClick={() => { setActiveTab('saved'); setIsMobileMenuOpen(false); }}
+                className="w-full text-right p-2.5 rounded-xl hover:bg-slate-50"
+              >
+                وثائقي ({savedCount})
+              </button>
+              <button
+                onClick={() => { setActiveTab('account'); setIsMobileMenuOpen(false); }}
+                className="w-full text-right p-2.5 rounded-xl hover:bg-slate-50"
+              >
+                حساب الأستاذ
+              </button>
+              <button
+                onClick={() => { setActiveTab('pricing'); setIsMobileMenuOpen(false); }}
+                className="w-full text-right p-2.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200"
+              >
+                الباقات والأسعار
+              </button>
+              {isOwner && (
+                <button
+                  onClick={() => { setActiveTab('admin'); setIsMobileMenuOpen(false); }}
+                  className="w-full text-right p-2.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200"
+                >
+                  لوحة الإدارة (Owner)
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => { setActiveTab('landing'); setIsMobileMenuOpen(false); }}
+                className="w-full text-right p-2.5 rounded-xl hover:bg-slate-50"
+              >
+                الرئيسية
+              </button>
+              <button
+                onClick={() => { onQuickNew(); setActiveTab('wizard'); setIsMobileMenuOpen(false); }}
+                className="w-full text-right p-2.5 rounded-xl bg-emerald-50 text-emerald-800 font-bold border border-emerald-200 flex items-center justify-between"
+              >
+                <span>إنشاء وثيقة تربوية</span>
+                <PlusCircle className="w-4 h-4 text-emerald-700" />
+              </button>
+              <button
+                onClick={() => { setActiveTab('pricing'); setIsMobileMenuOpen(false); }}
+                className="w-full text-right p-2.5 rounded-xl hover:bg-slate-50"
+              >
+                الاشتراكات والأسعار
+              </button>
+              <button
+                onClick={() => { setActiveTab('privacy'); setIsMobileMenuOpen(false); }}
+                className="w-full text-right p-2.5 rounded-xl hover:bg-slate-50 text-slate-500"
+              >
+                سياسة الخصوصية
+              </button>
+              <button
+                onClick={() => { loginDemo('TEACHER'); setIsMobileMenuOpen(false); }}
+                className="w-full text-right p-2.5 rounded-xl bg-amber-500 text-slate-950 font-black border border-amber-600 flex items-center justify-between"
+              >
+                <span>الدخول بحساب تجريبي (PRO)</span>
+                <Sparkles className="w-4 h-4 text-slate-950" />
+              </button>
+              <button
+                onClick={() => { onOpenAuthModal('login'); setIsMobileMenuOpen(false); }}
+                className="w-full text-right p-2.5 rounded-xl bg-slate-100 text-slate-800"
+              >
+                تسجيل الدخول
+              </button>
+              <button
+                onClick={() => { onOpenAuthModal('register'); setIsMobileMenuOpen(false); }}
+                className="w-full text-right p-2.5 rounded-xl bg-[#065F46] text-white"
+              >
+                إنشاء حساب مجاني
+              </button>
+            </>
           )}
-          <button
-            onClick={() => { setActiveTab('privacy'); setIsMobileMenuOpen(false); }}
-            className="w-full text-right p-2.5 rounded-xl hover:bg-slate-50 text-slate-500"
-          >
-            {t.navPrivacy}
-          </button>
         </div>
       )}
     </header>

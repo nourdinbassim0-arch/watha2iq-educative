@@ -35,6 +35,172 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'وثائقي التربوية Backend API' });
 });
 
+// Lazy initialize Stripe client
+let stripeClient: any = null;
+async function getStripeClient() {
+  if (!stripeClient && process.env.PAYMENT_SECRET_KEY) {
+    try {
+      const { default: Stripe } = await import('stripe');
+      stripeClient = new Stripe(process.env.PAYMENT_SECRET_KEY, {
+        apiVersion: '2025-02-24.acacia' as any,
+      });
+    } catch (err) {
+      console.warn('Failed to load Stripe SDK:', err);
+    }
+  }
+  return stripeClient;
+}
+
+// Payment configuration info
+app.get('/api/payment/config', (req, res) => {
+  const isConfigured = Boolean(process.env.PAYMENT_SECRET_KEY);
+  res.json({
+    isConfigured,
+    provider: process.env.PAYMENT_PROVIDER || 'stripe',
+    currency: 'MAD',
+    priceMad: 49,
+    priceUsd: 4.99,
+  });
+});
+
+// Create Checkout Session
+app.post('/api/payment/create-checkout-session', async (req, res) => {
+  try {
+    const { uid, userEmail, returnUrl } = req.body;
+
+    if (!uid || !userEmail) {
+      return res.status(400).json({ error: 'Missing required user parameters (uid, userEmail)' });
+    }
+
+    const stripe = await getStripeClient();
+    if (!stripe || !process.env.PAYMENT_SECRET_KEY) {
+      return res.status(200).json({
+        success: false,
+        isConfigured: false,
+        message: 'بوابة الدفع الإلكتروني تتطلب ضبط مفتاح PAYMENT_SECRET_KEY في إعدادات البيئة لتفعيل الدفع الفعلي.',
+      });
+    }
+
+    const origin = returnUrl || req.headers.origin || 'http://localhost:3000';
+    const priceId = process.env.PAYMENT_PRICE_ID_PRO;
+
+    // Build session params
+    const sessionParams: any = {
+      payment_method_types: ['card'],
+      mode: 'subscription',
+      customer_email: userEmail,
+      client_reference_id: uid,
+      metadata: {
+        userId: uid,
+        userEmail: userEmail,
+        plan: 'PRO',
+      },
+      success_url: `${origin}?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}?payment=cancelled`,
+    };
+
+    if (priceId) {
+      sessionParams.line_items = [
+        {
+          price: priceId,
+          quantity: 1,
+        },
+      ];
+    } else {
+      // Fallback price data
+      sessionParams.line_items = [
+        {
+          price_data: {
+            currency: 'mad',
+            product_data: {
+              name: 'اشتراك وثائقي التربوية الاحترافي (PRO)',
+              description: 'وصول غير محدود لإنشاء الجذاذات والفروض والمواثيق مع التصدير الفائق والميزات المتقدمة',
+            },
+            unit_amount: 4900, // 49 MAD
+            recurring: {
+              interval: 'month',
+            },
+          },
+          quantity: 1,
+        },
+      ];
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
+
+    return res.json({
+      success: true,
+      url: session.url,
+      sessionId: session.id,
+    });
+  } catch (error: any) {
+    console.error('Error creating checkout session:', error);
+    return res.status(500).json({
+      error: 'فشل إنشاء جلسة الدفع',
+      details: error.message,
+    });
+  }
+});
+
+// Payment Webhook
+app.post('/api/payment/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  const webhookSecret = process.env.PAYMENT_WEBHOOK_SECRET;
+
+  let event: any = req.body;
+
+  if (webhookSecret && sig) {
+    const stripe = await getStripeClient();
+    if (stripe) {
+      try {
+        event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+      } catch (err: any) {
+        console.error('Webhook signature verification failed:', err.message);
+        return res.status(400).send(`Webhook Error: ${err.message}`);
+      }
+    }
+  }
+
+  // Handle relevant events
+  switch (event.type) {
+    case 'checkout.session.completed': {
+      const session = event.data?.object;
+      const userId = session?.client_reference_id || session?.metadata?.userId;
+      console.log(`Payment successful for user ${userId}, Subscription: ${session?.subscription}`);
+      break;
+    }
+    case 'customer.subscription.deleted': {
+      const subscription = event.data?.object;
+      console.log(`Subscription cancelled: ${subscription?.id}`);
+      break;
+    }
+    default:
+      console.log(`Unhandled webhook event type: ${event.type}`);
+  }
+
+  return res.json({ received: true });
+});
+
+// Admin / Owner bootstrap endpoint
+app.post('/api/admin/bootstrap-owner', async (req, res) => {
+  const secret = req.headers['x-bootstrap-secret'] || req.body?.secret;
+  const expectedSecret = process.env.ADMIN_BOOTSTRAP_SECRET;
+
+  if (!expectedSecret || secret !== expectedSecret) {
+    return res.status(403).json({ error: 'Unauthorized: Invalid or unconfigured ADMIN_BOOTSTRAP_SECRET' });
+  }
+
+  const { uid, email } = req.body;
+  if (!uid && !email) {
+    return res.status(400).json({ error: 'Provide user uid or email to promote to OWNER' });
+  }
+
+  return res.json({
+    success: true,
+    message: `User ${uid || email} is authorized as OWNER. Ensure Firestore users collection reflects role: OWNER.`,
+  });
+});
+
 // Endpoint for AI Pedagogical Content Generation according to Moroccan Curriculum
 app.post('/api/pedagogy/generate', async (req, res) => {
   try {

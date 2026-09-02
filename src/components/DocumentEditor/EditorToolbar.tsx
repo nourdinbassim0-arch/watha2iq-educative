@@ -200,6 +200,19 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             <Sparkles className="w-4 h-4 text-[#D97706]" />
             <span className="hidden md:inline">{isRtl ? 'المساعد الديداكتيكي' : 'Assistant IA'}</span>
           </button>
+
+          {/* Design & Decorations Customizer Button */}
+          {onOpenCustomizer && (
+            <button
+              id="editor-btn-customizer"
+              onClick={onOpenCustomizer}
+              className="inline-flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 font-bold text-xs px-3 py-2 rounded-xl transition-all"
+              title="تخصيص الإطارات والزخارف المغربية والهيدر"
+            >
+              <Palette className="w-4 h-4 text-emerald-700" />
+              <span className="hidden md:inline">{isRtl ? 'تصميم الوثيقة والزخارف' : 'Design & Décoration'}</span>
+            </button>
+          )}
         </div>
 
         {/* Right Actions: Page Format, Language, Zoom */}

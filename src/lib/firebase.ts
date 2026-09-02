@@ -3,12 +3,12 @@ import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
-const rawApiKey = (import.meta.env.VITE_FIREBASE_API_KEY || '').trim();
-const rawProjectId = (import.meta.env.VITE_FIREBASE_PROJECT_ID || '').trim();
-const rawAuthDomain = (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '').trim();
-const rawStorageBucket = (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '').trim();
-const rawMessagingSenderId = (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '').trim();
-const rawAppId = (import.meta.env.VITE_FIREBASE_APP_ID || '').trim();
+const rawApiKey = (import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyDFPC2wyrnRlwdjFseELpMb94XlmfL93_Q').trim();
+const rawProjectId = (import.meta.env.VITE_FIREBASE_PROJECT_ID || 'wata-f93c4').trim();
+const rawAuthDomain = (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'wata-f93c4.firebaseapp.com').trim();
+const rawStorageBucket = (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'wata-f93c4.firebasestorage.app').trim();
+const rawMessagingSenderId = (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '742957262082').trim();
+const rawAppId = (import.meta.env.VITE_FIREBASE_APP_ID || '1:742957262082:web:c9bbfd93e914066aff8e1b').trim();
 
 // Check if valid Firebase configuration is present
 export const isFirebaseConfigured = Boolean(

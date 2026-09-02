@@ -397,7 +397,11 @@ export const DocumentWizard: React.FC<DocumentWizardProps> = ({
     };
 
     setIsGeneratingAi(false);
-    onDocumentCreated(newDoc);
+    try {
+      onDocumentCreated(newDoc);
+    } catch (err) {
+      console.error('Error transitioning to document editor:', err);
+    }
   };
 
   return (
@@ -436,14 +440,18 @@ export const DocumentWizard: React.FC<DocumentWizardProps> = ({
                   type="button"
                   id={`select-doc-type-${typeKey}`}
                   onClick={() => setDocType(typeKey)}
-                  className={`p-4 rounded-2xl text-right transition-all border-2 flex flex-col justify-between relative group ${
+                  className={`p-4 rounded-2xl text-right transition-all border-2 flex flex-col justify-between relative group cursor-pointer ${
                     isSelected
                       ? 'border-[#065F46] bg-[#ECFDF5] shadow-xs ring-2 ring-[#065F46]/20'
                       : 'border-[#E5E7EB] hover:border-[#A7F3D0] hover:bg-[#F9FAFB]'
                   }`}
                 >
                   <div className="flex items-start justify-between mb-3">
-                    <div className={`p-2.5 rounded-xl ${isSelected ? 'bg-[#065F46] text-white' : 'bg-[#F3F4F6] text-[#4B5563] group-hover:bg-[#ECFDF5] group-hover:text-[#065F46]'}`}>
+                    <div className={`p-2.5 rounded-xl ${
+                      isSelected 
+                        ? 'bg-[#065F46] text-white' 
+                        : 'bg-[#F3F4F6] text-[#4B5563] group-hover:bg-[#ECFDF5] group-hover:text-[#065F46]'
+                    }`}>
                       {typeKey === 'fiche_pedagogique' && <FileSpreadsheet className="w-5 h-5" />}
                       {typeKey === 'charte_classe' && <ScrollText className="w-5 h-5" />}
                       {typeKey === 'controle_devoir' && <FileCheck className="w-5 h-5" />}
@@ -462,11 +470,11 @@ export const DocumentWizard: React.FC<DocumentWizardProps> = ({
                   </div>
 
                   <div>
-                    <h4 className="font-bold text-[#1F2937] text-sm leading-snug">
+                    <h4 className="font-bold text-sm leading-snug text-[#1F2937]">
                       {labelObj.ar}
                     </h4>
-                    <span className="inline-block mt-2 text-[11px] font-semibold text-[#065F46] bg-[#D1FAE5] px-2 py-0.5 rounded-md">
-                      {labelObj.badge}
+                    <span className="inline-block mt-2 text-[11px] font-semibold px-2 py-0.5 rounded-md text-[#065F46] bg-[#D1FAE5]">
+                      متاحة الآن
                     </span>
                   </div>
                 </button>
