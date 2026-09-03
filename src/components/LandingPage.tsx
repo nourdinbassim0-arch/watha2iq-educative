@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import { MoroccanOfficialEmblem } from './MoroccanOfficialEmblem';
 import { Language } from '../i18n/translations';
-import { useAuth } from '../context/AuthContext';
 
 interface LandingPageProps {
   onOpenLogin: () => void;
@@ -35,7 +34,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onViewPrivacy,
   language,
 }) => {
-  const { loginDemo } = useAuth();
   return (
     <div className="bg-[#FDFCFB] text-[#2D3436] min-h-screen font-sans" dir="rtl">
       
@@ -71,30 +69,29 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           {/* Primary Action Buttons */}
           <div className="flex flex-wrap items-center justify-center gap-3.5 max-w-xl mx-auto mb-10">
             <button
-              id="landing-btn-demo"
-              onClick={() => loginDemo('TEACHER')}
-              className="flex-1 min-w-[210px] flex items-center justify-center gap-2 bg-[#FDE68A] hover:bg-[#FBBF24] text-slate-950 font-black text-base py-4 px-6 rounded-2xl shadow-lg shadow-black/20 hover:shadow-xl transition-all duration-200 active:scale-95 border border-amber-300 cursor-pointer"
-            >
-              <Sparkles className="w-5 h-5 text-amber-800" />
-              <span>تجربة الموقع فوراً (حساب تجريبي)</span>
-            </button>
-
-            <button
               id="landing-btn-register"
               onClick={onOpenRegister}
-              className="flex-1 min-w-[170px] flex items-center justify-center gap-2.5 bg-[#D97706] hover:bg-[#B45309] text-white font-bold text-base py-4 px-6 rounded-2xl shadow-lg shadow-[#044735]/50 hover:shadow-xl transition-all duration-200 active:scale-95 border border-[#FDE68A]/30 cursor-pointer"
+              className="flex-1 min-w-[210px] flex items-center justify-center gap-2.5 bg-[#D97706] hover:bg-[#B45309] text-white font-black text-base py-4 px-6 rounded-2xl shadow-lg shadow-[#044735]/50 hover:shadow-xl transition-all duration-200 active:scale-95 border border-[#FDE68A]/30 cursor-pointer"
             >
               <UserPlus className="w-5 h-5" />
-              <span>إنشاء حساب مجاني</span>
+              <span>إنشاء حساب وتفعيل الاشتراك</span>
             </button>
 
             <button
               id="landing-btn-login"
               onClick={onOpenLogin}
-              className="min-w-[140px] flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white font-bold text-base py-4 px-6 rounded-2xl shadow-md hover:shadow-lg transition-all duration-200 active:scale-95 border border-white/30 backdrop-blur-xs cursor-pointer"
+              className="min-w-[150px] flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white font-bold text-base py-4 px-6 rounded-2xl shadow-md hover:shadow-lg transition-all duration-200 active:scale-95 border border-white/30 backdrop-blur-xs cursor-pointer"
             >
               <LogIn className="w-5 h-5" />
               <span>تسجيل الدخول</span>
+            </button>
+
+            <button
+              onClick={onViewPricing}
+              className="min-w-[160px] flex items-center justify-center gap-2 bg-[#FDE68A]/20 hover:bg-[#FDE68A]/30 text-[#FDE68A] font-bold text-sm py-4 px-5 rounded-2xl border border-[#FDE68A]/40 transition-all cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>الاشتراك: 49 درهم</span>
             </button>
           </div>
 
@@ -256,34 +253,27 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             ابدأ الآن بإنشاء أول جذاذة تربوية رسمية
           </h3>
           <p className="text-emerald-100 text-sm max-w-lg mx-auto mb-8">
-            انضم إلى فضاء الأساتذة واستفد من الإنشاء المجاني وتجربة التحرير المرنة.
+            انضم إلى فضاء الأساتذة واستفد من الاشتراك الموحد (49 درهماً في الشهر أو في السنة) لتصميم وتصدير كافة وثائقك البيداغوجية الرسمية.
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-3">
             <button
-              onClick={() => loginDemo('TEACHER')}
-              className="bg-[#FDE68A] hover:bg-[#FBBF24] text-slate-950 font-black text-sm py-3 px-6 rounded-xl shadow-md transition-all active:scale-95 border border-amber-300 flex items-center gap-2 cursor-pointer"
-            >
-              <Sparkles className="w-4 h-4 text-amber-800" />
-              <span>تجربة الموقع بحساب تجريبي</span>
-            </button>
-            <button
               onClick={onOpenRegister}
               className="bg-[#D97706] hover:bg-[#B45309] text-white font-bold text-sm py-3 px-6 rounded-xl shadow-md transition-all active:scale-95 border border-[#FDE68A]/30 cursor-pointer"
             >
-              إنشاء حساب جديد
+              إنشاء حساب وتفعيل الاشتراك
             </button>
             <button
               onClick={onOpenLogin}
-              className="bg-white/15 hover:bg-white/25 text-white font-bold text-sm py-3 px-6 rounded-xl transition-all"
+              className="bg-white/15 hover:bg-white/25 text-white font-bold text-sm py-3 px-6 rounded-xl transition-all cursor-pointer"
             >
               تسجيل الدخول
             </button>
             <button
               onClick={onViewPricing}
-              className="text-emerald-200 hover:text-white font-bold text-sm px-4 py-3"
+              className="text-emerald-200 hover:text-white font-bold text-sm px-4 py-3 cursor-pointer"
             >
-              الاطلاع على الباقات والأسعار
+              تفاصيل الاشتراك والأسعار (49 درهم)
             </button>
           </div>
         </div>

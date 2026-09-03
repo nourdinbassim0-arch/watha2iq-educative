@@ -199,3 +199,24 @@ export interface StructuredDocument {
   sections: DocumentSection[];
   watermarkText?: string;
 }
+
+export type {
+  HeaderTemplate,
+  HeaderFieldsVisibility,
+  LogoPosition,
+  LogoSize,
+  DocumentLogoConfig,
+  DocumentHeaderConfig,
+  PageBorderPreset,
+  BorderScope,
+  DocumentBorderConfig,
+  IslamicDecorationStyle,
+  DecorationIntensityLevel,
+  DocumentDecorationConfig,
+  DocumentMarginConfig,
+  SignatureLayout,
+  DocumentSignatureItem,
+  DocumentSignaturesConfig,
+  DocumentFooterConfig,
+} from '../types';
+

@@ -1,37 +1,130 @@
 import React from 'react';
-
-export type DecorationTemplate = 'none' | 'minimal' | 'classic' | 'academic' | 'elegant' | 'geometric';
-export type BorderType = 'none' | 'full' | 'partial' | 'corners';
-export type DecorationIntensity = 'light' | 'medium' | 'strong';
+import {
+  DocumentBorderConfig,
+  DocumentDecorationConfig,
+  IslamicDecorationStyle,
+  DecorationIntensityLevel,
+  PageBorderPreset,
+} from '../../types';
 
 export interface DocumentDecorationsProps {
-  template?: DecorationTemplate;
-  borderType?: BorderType;
+  borderConfig?: DocumentBorderConfig;
+  decorationConfig?: DocumentDecorationConfig;
+  // Backward compatibility props
+  template?: string;
+  borderType?: string;
   borderColor?: string;
   borderWidth?: number;
-  intensity?: DecorationIntensity;
-  widthMm?: number;
-  heightMm?: number;
+  intensity?: string;
 }
 
-export const DocumentDecorations: React.FC<DocumentDecorationsProps> = ({
-  template = 'classic',
-  borderType = 'full',
-  borderColor = '#065f46',
-  borderWidth = 1.5,
-  intensity = 'medium',
-}) => {
-  if (template === 'none' && borderType === 'none') {
-    return null;
-  }
+export type DecorationTemplate = PageBorderPreset | string;
+export type BorderType = 'full' | 'corners' | 'partial' | 'none' | string;
+export type DecorationIntensity = DecorationIntensityLevel | string;
 
-  const opacityMap: Record<DecorationIntensity, number> = {
-    light: 0.35,
-    medium: 0.75,
+export const DocumentDecorations: React.FC<DocumentDecorationsProps> = ({
+  borderConfig,
+  decorationConfig,
+  template,
+  borderType,
+  borderColor: propBorderColor,
+  borderWidth: propBorderWidth,
+  intensity: propIntensity,
+}) => {
+  // Resolve border settings
+  const borderPreset: PageBorderPreset = borderConfig?.preset || (borderType === 'none' ? 'none' : 'moroccan');
+  const borderThickness = borderConfig?.thickness ?? propBorderWidth ?? 1.5;
+  const borderColor = borderConfig?.color || propBorderColor || '#065f46';
+  const borderInsetMm = borderConfig?.insetMm ?? 6;
+  const borderScope = borderConfig?.scope || (borderType as any) || 'full';
+
+  // Resolve decoration settings
+  const decStyle: IslamicDecorationStyle = decorationConfig?.style || (template as any) || 'moroccan_geometric';
+  const decIntensity: DecorationIntensityLevel = decorationConfig?.intensity || (propIntensity as any) || 'light';
+
+  // Opacity map for decoration intensity
+  const intensityMap: Record<DecorationIntensityLevel, number> = {
+    none: 0,
+    light: 0.25,
+    medium: 0.65,
     strong: 1.0,
   };
 
-  const opacity = opacityMap[intensity] || 0.75;
+  const decOpacity = intensityMap[decIntensity] ?? 0.25;
+
+  if (borderPreset === 'none' && decIntensity === 'none') {
+    return null;
+  }
+
+  // Common Corner 8-Point Islamic Star (خاتم إسلامي)
+  const renderIslamicStarCorner = (size = 36) => (
+    <svg viewBox="0 0 40 40" fill="currentColor" className="w-full h-full">
+      {/* 8-pointed star */}
+      <polygon points="20,2 24,14 36,10 28,20 36,30 24,26 20,38 16,26 4,30 12,20 4,10 16,14" opacity="0.9" />
+      <circle cx="20" cy="20" r="4" fill="#FFFFFF" />
+      <circle cx="20" cy="20" r="2.5" fill="currentColor" />
+    </svg>
+  );
+
+  // Moroccan Geometric Interlaced Corner
+  const renderMoroccanGeometricCorner = () => (
+    <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-full h-full">
+      <path d="M2 38 L2 2 L38 2" />
+      <path d="M7 38 L7 7 L38 7" strokeWidth="0.8" opacity="0.6" />
+      <polygon points="16,4 20,8 16,12 12,8" fill="currentColor" />
+      <polygon points="4,16 8,20 4,24 0,20" fill="currentColor" />
+      <rect x="10" y="10" width="8" height="8" fill="currentColor" opacity="0.85" />
+    </svg>
+  );
+
+  // Zellij Star Motif
+  const renderZellijMotif = () => (
+    <svg viewBox="0 0 40 40" fill="currentColor" className="w-full h-full">
+      <path d="M0 0 L40 0 L40 4 L4 4 L4 40 L0 40 Z" />
+      <polygon points="16,8 24,8 28,16 24,24 16,24 8,16" opacity="0.85" />
+      <polygon points="16,10 22,10 25,16 22,22 16,22 10,16" fill="#FFFFFF" />
+      <circle cx="16" cy="16" r="2" fill="currentColor" />
+    </svg>
+  );
+
+  // Classic Arabesque Floral Corner
+  const renderArabesqueCorner = () => (
+    <svg viewBox="0 0 40 40" fill="currentColor" className="w-full h-full">
+      <path d="M0 0 C22 0 40 18 40 40 L36 40 C36 21 21 6 0 6 Z" />
+      <path d="M6 6 C20 6 34 20 34 34 L31 34 C31 22 22 13 6 13 Z" opacity="0.6" />
+      <circle cx="15" cy="15" r="3.5" />
+    </svg>
+  );
+
+  // Academic Dignified Seal Corner
+  const renderAcademicCorner = () => (
+    <svg viewBox="0 0 40 40" fill="currentColor" className="w-full h-full">
+      <path d="M0 0 L40 0 L40 6 L6 6 L6 40 L0 40 Z" />
+      <rect x="10" y="10" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <polygon points="16,11 21,16 16,21 11,16" fill="currentColor" />
+    </svg>
+  );
+
+  const getCornerRenderer = () => {
+    switch (decStyle) {
+      case 'moroccan_zellij':
+        return renderZellijMotif;
+      case 'moroccan_geometric':
+      case 'geometric':
+        return renderMoroccanGeometricCorner;
+      case 'academic_official':
+      case 'academic_green':
+        return renderAcademicCorner;
+      case 'corner_ornaments':
+        return renderArabesqueCorner;
+      case 'classic_islamic':
+      case 'simple_islamic':
+      default:
+        return renderIslamicStarCorner;
+    }
+  };
+
+  const CornerComponent = getCornerRenderer();
 
   return (
     <div
@@ -39,169 +132,228 @@ export const DocumentDecorations: React.FC<DocumentDecorationsProps> = ({
       style={{ zIndex: 1 }}
       aria-hidden="true"
     >
-      {/* 1. FULL BORDER STYLES */}
-      {borderType === 'full' && (
-        <>
-          {/* Outer Border */}
-          <div
-            className="absolute inset-3 rounded-xs pointer-events-none"
-            style={{
-              border: `${borderWidth}px solid ${borderColor}`,
-              opacity: opacity,
-            }}
-          />
-
-          {/* Inner Accent Line for Classic / Academic / Elegant */}
-          {(template === 'classic' || template === 'academic' || template === 'elegant') && (
+      {/* ---------------- 1. PAGE BORDERS ---------------- */}
+      {borderPreset !== 'none' && borderScope !== 'none' && (
+        <div
+          style={{
+            position: 'absolute',
+            top: `${borderInsetMm}mm`,
+            bottom: `${borderInsetMm}mm`,
+            left: `${borderInsetMm}mm`,
+            right: `${borderInsetMm}mm`,
+          }}
+          className="pointer-events-none"
+        >
+          {/* Preset: SIMPLE */}
+          {borderPreset === 'simple' && (
             <div
-              className="absolute inset-4.5 rounded-xs pointer-events-none"
+              className="w-full h-full rounded-xs"
               style={{
-                border: `0.75px solid ${borderColor}`,
-                opacity: opacity * 0.6,
+                border: `${borderThickness}px solid ${borderColor}`,
               }}
             />
           )}
 
-          {/* Geometric Outer Double Border */}
-          {template === 'geometric' && (
+          {/* Preset: ISLAMIC (Double Border with inner decorative margin) */}
+          {borderPreset === 'islamic' && (
             <div
-              className="absolute inset-5 rounded-xs pointer-events-none"
+              className="w-full h-full rounded-xs p-1"
               style={{
-                border: `1px dashed ${borderColor}`,
-                opacity: opacity * 0.5,
+                border: `${borderThickness * 1.3}px solid ${borderColor}`,
               }}
-            />
+            >
+              <div
+                className="w-full h-full rounded-xs"
+                style={{
+                  border: `${Math.max(0.75, borderThickness * 0.6)}px solid ${borderColor}`,
+                  opacity: 0.85,
+                }}
+              />
+            </div>
           )}
-        </>
-      )}
 
-      {/* 2. PARTIAL BORDER (Top and Bottom Bands) */}
-      {borderType === 'partial' && (
-        <>
-          <div
-            className="absolute top-3 left-3 right-3"
-            style={{
-              borderTop: `${borderWidth * 1.5}px solid ${borderColor}`,
-              borderBottom: `0.75px solid ${borderColor}`,
-              paddingBottom: '2px',
-              opacity: opacity,
-            }}
-          />
-          <div
-            className="absolute bottom-3 left-3 right-3"
-            style={{
-              borderBottom: `${borderWidth * 1.5}px solid ${borderColor}`,
-              borderTop: `0.75px solid ${borderColor}`,
-              paddingTop: '2px',
-              opacity: opacity,
-            }}
-          />
-        </>
-      )}
+          {/* Preset: MOROCCAN (Outer stroke + dashed inner + corner alignment) */}
+          {borderPreset === 'moroccan' && (
+            <div
+              className="w-full h-full rounded-xs p-1.5"
+              style={{
+                border: `${borderThickness * 1.5}px solid ${borderColor}`,
+              }}
+            >
+              <div
+                className="w-full h-full rounded-xs"
+                style={{
+                  border: `${borderThickness * 0.75}px solid ${borderColor}`,
+                }}
+              />
+            </div>
+          )}
 
-      {/* 3. CORNER ORNAMENTS (SVG High-Res Vector Accents) */}
-      {(borderType === 'corners' || borderType === 'full') && template !== 'none' && template !== 'minimal' && (
-        <>
-          {/* Top-Right Corner */}
-          <div className="absolute top-2.5 right-2.5 w-8 h-8 pointer-events-none" style={{ color: borderColor, opacity }}>
-            {template === 'classic' || template === 'academic' ? (
-              <svg viewBox="0 0 40 40" fill="currentColor" className="w-full h-full">
-                <path d="M0 0 L40 0 L40 8 L8 8 L8 40 L0 40 Z" />
-                <circle cx="16" cy="16" r="3.5" />
-                <path d="M12 24 L24 12 M18 28 L28 18" stroke="currentColor" strokeWidth="1.5" fill="none" />
-              </svg>
-            ) : template === 'geometric' ? (
-              <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="2" className="w-full h-full">
-                <path d="M2 38 L2 2 L38 2" />
-                <path d="M8 38 L8 8 L38 8" strokeWidth="1" opacity="0.6" />
-                <rect x="12" y="12" width="6" height="6" fill="currentColor" />
-              </svg>
-            ) : (
-              /* Elegant */
-              <svg viewBox="0 0 40 40" fill="currentColor" className="w-full h-full">
-                <path d="M0 0 C20 0 40 20 40 40 L36 40 C36 22 22 8 0 8 Z" />
-                <circle cx="12" cy="12" r="2.5" />
-              </svg>
-            )}
-          </div>
+          {/* Preset: ACADEMIC (Authoritative clean double lines) */}
+          {borderPreset === 'academic' && (
+            <div
+              className="w-full h-full rounded-xs p-1"
+              style={{
+                border: `${borderThickness * 1.4}px solid ${borderColor}`,
+              }}
+            >
+              <div
+                className="w-full h-full rounded-xs"
+                style={{
+                  border: `1px solid ${borderColor}`,
+                  opacity: 0.7,
+                }}
+              />
+            </div>
+          )}
 
-          {/* Top-Left Corner */}
-          <div className="absolute top-2.5 left-2.5 w-8 h-8 pointer-events-none transform -scale-x-100" style={{ color: borderColor, opacity }}>
-            {template === 'classic' || template === 'academic' ? (
-              <svg viewBox="0 0 40 40" fill="currentColor" className="w-full h-full">
-                <path d="M0 0 L40 0 L40 8 L8 8 L8 40 L0 40 Z" />
-                <circle cx="16" cy="16" r="3.5" />
-                <path d="M12 24 L24 12 M18 28 L28 18" stroke="currentColor" strokeWidth="1.5" fill="none" />
-              </svg>
-            ) : template === 'geometric' ? (
-              <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="2" className="w-full h-full">
-                <path d="M2 38 L2 2 L38 2" />
-                <path d="M8 38 L8 8 L38 8" strokeWidth="1" opacity="0.6" />
-                <rect x="12" y="12" width="6" height="6" fill="currentColor" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 40 40" fill="currentColor" className="w-full h-full">
-                <path d="M0 0 C20 0 40 20 40 40 L36 40 C36 22 22 8 0 8 Z" />
-                <circle cx="12" cy="12" r="2.5" />
-              </svg>
-            )}
-          </div>
-
-          {/* Bottom-Right Corner */}
-          <div className="absolute bottom-2.5 right-2.5 w-8 h-8 pointer-events-none transform -scale-y-100" style={{ color: borderColor, opacity }}>
-            {template === 'classic' || template === 'academic' ? (
-              <svg viewBox="0 0 40 40" fill="currentColor" className="w-full h-full">
-                <path d="M0 0 L40 0 L40 8 L8 8 L8 40 L0 40 Z" />
-                <circle cx="16" cy="16" r="3.5" />
-                <path d="M12 24 L24 12 M18 28 L28 18" stroke="currentColor" strokeWidth="1.5" fill="none" />
-              </svg>
-            ) : template === 'geometric' ? (
-              <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="2" className="w-full h-full">
-                <path d="M2 38 L2 2 L38 2" />
-                <path d="M8 38 L8 8 L38 8" strokeWidth="1" opacity="0.6" />
-                <rect x="12" y="12" width="6" height="6" fill="currentColor" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 40 40" fill="currentColor" className="w-full h-full">
-                <path d="M0 0 C20 0 40 20 40 40 L36 40 C36 22 22 8 0 8 Z" />
-                <circle cx="12" cy="12" r="2.5" />
-              </svg>
-            )}
-          </div>
-
-          {/* Bottom-Left Corner */}
-          <div className="absolute bottom-2.5 left-2.5 w-8 h-8 pointer-events-none transform -scale-x-100 -scale-y-100" style={{ color: borderColor, opacity }}>
-            {template === 'classic' || template === 'academic' ? (
-              <svg viewBox="0 0 40 40" fill="currentColor" className="w-full h-full">
-                <path d="M0 0 L40 0 L40 8 L8 8 L8 40 L0 40 Z" />
-                <circle cx="16" cy="16" r="3.5" />
-                <path d="M12 24 L24 12 M18 28 L28 18" stroke="currentColor" strokeWidth="1.5" fill="none" />
-              </svg>
-            ) : template === 'geometric' ? (
-              <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="2" className="w-full h-full">
-                <path d="M2 38 L2 2 L38 2" />
-                <path d="M8 38 L8 8 L38 8" strokeWidth="1" opacity="0.6" />
-                <rect x="12" y="12" width="6" height="6" fill="currentColor" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 40 40" fill="currentColor" className="w-full h-full">
-                <path d="M0 0 C20 0 40 20 40 40 L36 40 C36 22 22 8 0 8 Z" />
-                <circle cx="12" cy="12" r="2.5" />
-              </svg>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* 4. TOP & BOTTOM CENTER EMBLEMS FOR ACADEMIC & ELEGANT */}
-      {template === 'academic' && (
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 px-4 bg-white flex items-center gap-1.5" style={{ color: borderColor, opacity }}>
-          <span className="w-6 h-px bg-current" />
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
-          </svg>
-          <span className="w-6 h-px bg-current" />
+          {/* Preset: DECORATIVE (Triple ornamental lines) */}
+          {borderPreset === 'decorative' && (
+            <div
+              className="w-full h-full rounded-xs p-1"
+              style={{
+                border: `${borderThickness}px solid ${borderColor}`,
+              }}
+            >
+              <div
+                className="w-full h-full rounded-xs p-1"
+                style={{
+                  border: `0.75px dashed ${borderColor}`,
+                  opacity: 0.75,
+                }}
+              >
+                <div
+                  className="w-full h-full rounded-xs"
+                  style={{
+                    border: `0.75px solid ${borderColor}`,
+                    opacity: 0.5,
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
+      )}
+
+      {/* ---------------- 2. ISLAMIC DECORATIONS ---------------- */}
+      {decIntensity !== 'none' && decOpacity > 0 && (
+        <>
+          {/* Top Banner Ornamentation (for top_only or full styles) */}
+          {(decStyle === 'top_only' || decStyle === 'classic_islamic' || decStyle === 'moroccan_geometric') && (
+            <div
+              style={{
+                position: 'absolute',
+                top: `${borderInsetMm + 1}mm`,
+                left: '25%',
+                right: '25%',
+                height: '5px',
+                color: borderColor,
+                opacity: decOpacity,
+              }}
+              className="flex items-center justify-center overflow-hidden"
+            >
+              <svg viewBox="0 0 240 12" fill="none" stroke="currentColor" className="w-full h-full">
+                <line x1="0" y1="6" x2="105" y2="6" strokeWidth="1" />
+                <polygon points="120,0 124,6 120,12 116,6" fill="currentColor" />
+                <circle cx="110" cy="6" r="2" fill="currentColor" />
+                <circle cx="130" cy="6" r="2" fill="currentColor" />
+                <line x1="135" y1="6" x2="240" y2="6" strokeWidth="1" />
+              </svg>
+            </div>
+          )}
+
+          {/* Bottom Banner Ornamentation (for bottom_only or full styles) */}
+          {(decStyle === 'bottom_only' || decStyle === 'classic_islamic' || decStyle === 'moroccan_geometric') && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: `${borderInsetMm + 1}mm`,
+                left: '25%',
+                right: '25%',
+                height: '5px',
+                color: borderColor,
+                opacity: decOpacity,
+              }}
+              className="flex items-center justify-center overflow-hidden"
+            >
+              <svg viewBox="0 0 240 12" fill="none" stroke="currentColor" className="w-full h-full">
+                <line x1="0" y1="6" x2="105" y2="6" strokeWidth="1" />
+                <polygon points="120,0 124,6 120,12 116,6" fill="currentColor" />
+                <circle cx="110" cy="6" r="2" fill="currentColor" />
+                <circle cx="130" cy="6" r="2" fill="currentColor" />
+                <line x1="135" y1="6" x2="240" y2="6" strokeWidth="1" />
+              </svg>
+            </div>
+          )}
+
+          {/* Four Corner Accents (Unless top_only or bottom_only) */}
+          {decStyle !== 'top_only' && decStyle !== 'bottom_only' && (
+            <>
+              {/* Top-Right Corner */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: `${borderInsetMm}mm`,
+                  right: `${borderInsetMm}mm`,
+                  width: '32px',
+                  height: '32px',
+                  color: borderColor,
+                  opacity: decOpacity,
+                }}
+              >
+                {CornerComponent()}
+              </div>
+
+              {/* Top-Left Corner */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: `${borderInsetMm}mm`,
+                  left: `${borderInsetMm}mm`,
+                  width: '32px',
+                  height: '32px',
+                  color: borderColor,
+                  opacity: decOpacity,
+                  transform: 'scaleX(-1)',
+                }}
+              >
+                {CornerComponent()}
+              </div>
+
+              {/* Bottom-Right Corner */}
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: `${borderInsetMm}mm`,
+                  right: `${borderInsetMm}mm`,
+                  width: '32px',
+                  height: '32px',
+                  color: borderColor,
+                  opacity: decOpacity,
+                  transform: 'scaleY(-1)',
+                }}
+              >
+                {CornerComponent()}
+              </div>
+
+              {/* Bottom-Left Corner */}
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: `${borderInsetMm}mm`,
+                  left: `${borderInsetMm}mm`,
+                  width: '32px',
+                  height: '32px',
+                  color: borderColor,
+                  opacity: decOpacity,
+                  transform: 'scale(-1, -1)',
+                }}
+              >
+                {CornerComponent()}
+              </div>
+            </>
+          )}
+        </>
       )}
     </div>
   );

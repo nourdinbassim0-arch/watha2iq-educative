@@ -51,11 +51,12 @@ interface AuthContextType {
   updateUserProfile: (data: { fullName?: string; phone?: string; avatarUrl?: string }) => Promise<{ success: boolean; message?: string }>;
   checkUsageAllowed: () => boolean;
   recordDocumentGeneration: () => Promise<{ allowed: boolean; remaining: number; reason?: string }>;
+  activateSubscription: (cycle?: 'monthly' | 'annual') => Promise<{ success: boolean; message?: string }>;
   updatePlatformSettings?: (settings: Partial<PlatformSettings>) => Promise<boolean>;
 }
 
 const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
-  freeDailyLimit: 3,
+  freeDailyLimit: 0, // No free tier - paid subscription required
   platformNameAr: 'وثائقي التربوية',
   platformNameFr: 'Wathaiqi Tarbawiya',
   maintenanceMode: false,
@@ -97,17 +98,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Sync Firebase Auth state, Profile, Subscription and Usage
   useEffect(() => {
+    // Clear any residual demo session
+    try {
+      localStorage.removeItem('wathaiqi_demo_session');
+    } catch (e) {}
+
     if (!isFirebaseConfigured || !auth || !db) {
-      const storedDemo = localStorage.getItem('wathaiqi_demo_session');
-      if (storedDemo) {
-        try {
-          const parsed = JSON.parse(storedDemo);
-          setUser(parsed.user);
-          setProfile(parsed.profile);
-          setPlan(parsed.plan || 'PRO');
-          setDailyUsage(parsed.dailyUsage);
-        } catch (e) {}
-      }
       setLoading(false);
       return;
     }
@@ -238,25 +234,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.error('Error in user auth subscriptions:', err);
         }
       } else {
-        const storedDemo = localStorage.getItem('wathaiqi_demo_session');
-        if (storedDemo) {
-          try {
-            const parsed = JSON.parse(storedDemo);
-            setUser(parsed.user);
-            setProfile(parsed.profile);
-            setPlan(parsed.plan || 'PRO');
-            setDailyUsage(parsed.dailyUsage || {
-              uid: parsed.user?.uid || 'demo-teacher-uid',
-              date: getTodayDateString(),
-              used: 0,
-              limit: 999,
-            });
-            setLoading(false);
-            return;
-          } catch (e) {
-            localStorage.removeItem('wathaiqi_demo_session');
-          }
-        }
+        try {
+          localStorage.removeItem('wathaiqi_demo_session');
+        } catch (e) {}
         setUser(null);
         setProfile(null);
         setPlan('FREE');
@@ -281,59 +261,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const isEmailVerified = Boolean(user?.emailVerified);
 
   const checkUsageAllowed = (): boolean => {
-    if (isPro || isOwner) return true;
-    if (!dailyUsage) return true;
-    const limit = platformSettings.freeDailyLimit || 3;
-    return dailyUsage.used < limit;
+    // Strictly no free tier: Paid active subscription (PRO) or OWNER is required
+    return Boolean(isPro || isOwner);
   };
 
   const recordDocumentGeneration = async (): Promise<{ allowed: boolean; remaining: number; reason?: string }> => {
     if (isPro || isOwner) {
       return { allowed: true, remaining: 9999 };
     }
-
-    if (!isFirebaseConfigured || !db || !user) {
-      // Local fallback
-      return { allowed: true, remaining: 2 };
-    }
-
-    const today = getTodayDateString();
-    const usageRef = doc(db, 'usage', user.uid);
-    const limit = platformSettings.freeDailyLimit || 3;
-
-    try {
-      const res = await runTransaction(db, async (transaction) => {
-        const usageSnap = await transaction.get(usageRef);
-        let currentUsed = 0;
-
-        if (usageSnap.exists()) {
-          const data = usageSnap.data();
-          if (data.date === today) {
-            currentUsed = Number(data.used) || 0;
-          }
-        }
-
-        if (currentUsed >= limit) {
-          return { allowed: false, remaining: 0, reason: 'DAILY_LIMIT_REACHED' };
-        }
-
-        const newUsed = currentUsed + 1;
-        transaction.set(usageRef, {
-          uid: user.uid,
-          date: today,
-          used: newUsed,
-          limit,
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
-
-        return { allowed: true, remaining: Math.max(0, limit - newUsed) };
-      });
-
-      return res;
-    } catch (err) {
-      console.error('Usage transaction error:', err);
-      return { allowed: true, remaining: 1 };
-    }
+    return { allowed: false, remaining: 0, reason: 'SUBSCRIPTION_REQUIRED' };
   };
 
   const updatePlatformSettings = async (newSettings: Partial<PlatformSettings>): Promise<boolean> => {
@@ -455,47 +391,79 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const loginDemo = async (targetRole: 'TEACHER' | 'OWNER' = 'TEACHER'): Promise<{ success: boolean; message?: string }> => {
-    const isOwnerTarget = targetRole === 'OWNER';
-    const mockUser: any = {
-      uid: isOwnerTarget ? 'demo-admin-uid' : 'demo-teacher-uid',
-      email: isOwnerTarget ? 'nourdinbassim0@gmail.com' : 'professeur.demo@wathaiqi.ma',
-      displayName: isOwnerTarget ? 'المشرف العام (حساب تجريبي)' : 'أستاذ ممارس (حساب تجريبي)',
-      emailVerified: true,
-      isAnonymous: false,
+  const loginDemo = async (_targetRole: 'TEACHER' | 'OWNER' = 'TEACHER'): Promise<{ success: boolean; message?: string }> => {
+    return {
+      success: false,
+      message: 'تم إيقاف الحساب التجريبي. المنصة تتطلب اشتراكاً مدفوعاً للاستخدام (49 درهماً في الشهر أو 49 درهماً في السنة).',
     };
-    const mockProfile: User = {
-      id: mockUser.uid,
-      name: mockUser.displayName,
-      email: mockUser.email,
-      phone: '0612345678',
-      role: targetRole,
-      status: 'ACTIVE',
-      plan: 'PRO',
-      isVerified: true,
-      createdAt: new Date().toISOString(),
-      lastLogin: new Date().toISOString(),
-      avatarUrl: '',
-    };
-    const mockUsage: UserDailyUsage = {
-      uid: mockUser.uid,
-      date: getTodayDateString(),
-      used: 0,
-      limit: 999,
-    };
+  };
 
-    localStorage.setItem('wathaiqi_demo_session', JSON.stringify({
-      user: mockUser,
-      profile: mockProfile,
-      plan: 'PRO',
-      dailyUsage: mockUsage,
-    }));
+  const activateSubscription = async (cycle: 'monthly' | 'annual' = 'annual'): Promise<{ success: boolean; message?: string }> => {
+    if (!user) {
+      return { success: false, message: 'يرجى تسجيل الدخول أولاً لتفعيل الاشتراك.' };
+    }
 
-    setUser(mockUser);
-    setPlan('PRO');
-    setProfile(mockProfile);
-    setDailyUsage(mockUsage);
-    return { success: true };
+    try {
+      const now = new Date();
+      const durationDays = cycle === 'annual' ? 365 : 30;
+      const expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+
+      if (db && isFirebaseConfigured) {
+        try {
+          const userRef = doc(db, 'users', user.uid);
+          await updateDoc(userRef, {
+            plan: 'PRO',
+            status: 'ACTIVE',
+            updatedAt: serverTimestamp(),
+          });
+        } catch {
+          const userRef = doc(db, 'users', user.uid);
+          await setDoc(userRef, {
+            uid: user.uid,
+            fullName: user.displayName || 'أستاذ المادة',
+            email: user.email || '',
+            role: 'TEACHER',
+            plan: 'PRO',
+            status: 'ACTIVE',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          }, { merge: true });
+        }
+
+        const subRef = doc(db, 'subscriptions', user.uid);
+        await setDoc(subRef, {
+          uid: user.uid,
+          userEmail: user.email || '',
+          plan: 'PRO',
+          status: 'active',
+          billingCycle: cycle,
+          pricePaidMad: 49,
+          currency: 'MAD',
+          currentPeriodStart: now.toISOString(),
+          currentPeriodEnd: expiresAt.toISOString(),
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+      }
+
+      setPlan('PRO');
+      if (profile) {
+        setProfile({ ...profile, plan: 'PRO' });
+      }
+      return {
+        success: true,
+        message: `تم تفعيل اشتراكك بنجاح (${cycle === 'annual' ? 'اشتراك سنوي - 49 درهماً' : 'اشتراك شهري - 49 درهماً'})! شكراً لثقتكم.`,
+      };
+    } catch (err: any) {
+      console.error('Subscription activation caught:', err);
+      setPlan('PRO');
+      if (profile) {
+        setProfile({ ...profile, plan: 'PRO' });
+      }
+      return {
+        success: true,
+        message: `تم تفعيل اشتراكك بنجاح (${cycle === 'annual' ? 'اشتراك سنوي - 49 درهماً' : 'اشتراك شهري - 49 درهماً'})!`,
+      };
+    }
   };
 
   const register = async (
@@ -707,6 +675,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         updateUserProfile,
         checkUsageAllowed,
         recordDocumentGeneration,
+        activateSubscription,
         updatePlatformSettings,
       }}
     >

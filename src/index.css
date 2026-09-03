@@ -45,20 +45,71 @@
   box-shadow: 0 10px 25px -5px rgba(45, 52, 54, 0.08), 0 8px 10px -6px rgba(45, 52, 54, 0.06);
 }
 
+/* Screen Mode Semantic Classes */
+@media screen {
+  .print-only:not(#dedicated-clean-print-root) {
+    display: none !important;
+  }
+  
+  #dedicated-clean-print-root {
+    position: fixed;
+    top: 0;
+    left: -99999px;
+    z-index: -9999;
+    pointer-events: none;
+    opacity: 1;
+  }
+}
+
+/* Strict Professional Print & PDF Exporter Media Rules */
 @media print {
-  body {
+  html, body {
     background-color: #ffffff !important;
     color: #000000 !important;
     padding: 0 !important;
     margin: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
   
-  .no-print {
+  /* Strictly hide all editor UI, controls, handles, buttons and interactive canvas */
+  .no-print,
+  .editor-only,
+  [data-editor-only="true"],
+  header:not(#document-official-header),
+  nav,
+  aside,
+  footer.no-print,
+  #canvas-scroll-wrapper,
+  #document-render-canvas,
+  .text-selection-toolbar,
+  button {
     display: none !important;
   }
 
+  /* Display ONLY the dedicated clean non-editable print document */
+  #dedicated-clean-print-root,
   .print-only {
     display: block !important;
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    z-index: auto !important;
+    opacity: 1 !important;
+  }
+
+  .print-document {
+    box-shadow: none !important;
+    border: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
   }
 
   .print-page-break {
@@ -67,16 +118,7 @@
   }
 
   .print-avoid-break {
-    page-break-inside: avoid;
-    break-inside: avoid;
-  }
-
-  #document-render-canvas {
-    box-shadow: none !important;
-    border: none !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-    padding: 10mm !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 }

@@ -12,12 +12,15 @@ import {
   Sparkles, 
   FileSpreadsheet,
   Layers,
-  Settings2
+  Settings2,
+  Eye,
+  ShieldCheck
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { DocumentData, ExportFormat, PageFormat } from '../types';
 import { exportDocument, generateCleanFileName, triggerBrowserPrint } from '../utils/exportUtils';
 import { getDimensionInfo } from '../utils/pageDimensions';
+import { DocumentRenderer } from '../document-engine';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -34,6 +37,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   onUpdatePageFormat,
   onUpdateFooterToggle,
 }) => {
+  const [activeModalTab, setActiveModalTab] = useState<'settings' | 'preview'>('settings');
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('pdf');
   const [selectedPageFormat, setSelectedPageFormat] = useState<PageFormat>(documentData.pageFormat || 'a4_portrait');
   const [includeFooterDate, setIncludeFooterDate] = useState<boolean>(documentData.showFooterInfo ?? true);
@@ -101,7 +105,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
     try {
       await exportDocument(
-        'document-render-canvas',
+        'dedicated-clean-print-root',
         {
           ...documentData,
           pageFormat: selectedPageFormat,
@@ -132,7 +136,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const handlePrint = () => {
     onClose();
     setTimeout(() => {
-      triggerBrowserPrint();
+      triggerBrowserPrint(selectedPageFormat);
     }, 200);
   };
 
@@ -164,8 +168,42 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           </button>
         </div>
 
+        {/* Tab Navigation: Settings vs Live Print Preview */}
+        <div className="flex border-b border-slate-200 bg-slate-50 px-6 pt-3 gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveModalTab('settings')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-bold transition-all border-b-2 ${
+              activeModalTab === 'settings'
+                ? 'bg-white text-emerald-900 border-emerald-700 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900 border-transparent'
+            }`}
+          >
+            <Settings2 className="w-4 h-4" />
+            <span>خيارات وصيغ التصدير</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveModalTab('preview')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-bold transition-all border-b-2 ${
+              activeModalTab === 'preview'
+                ? 'bg-white text-emerald-900 border-emerald-700 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900 border-transparent'
+            }`}
+          >
+            <Eye className="w-4 h-4" />
+            <span>معاينة الطباعة المعتمدة (بدون أدوات التحرير)</span>
+            <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+              100% نظيفة
+            </span>
+          </button>
+        </div>
+
         {/* Modal Body */}
-        <div className="p-6 overflow-y-auto space-y-6">
+        <div className="p-6 overflow-y-auto space-y-6 flex-1">
+          {activeModalTab === 'settings' ? (
+            <>
           
           {/* Format Selection Grid */}
           <div>
@@ -278,6 +316,42 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               </code>
             </div>
           </div>
+        </>
+      ) : (
+        /* Live Print Preview Tab: 100% clean educational document with NO editor buttons */
+        <div className="space-y-4">
+          <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-emerald-950 font-bold">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-emerald-700 shrink-0" />
+              <span>معاينة الإخراج المعتمد: هذه المعاينة مطابقة تماماً للملف المصدر والمطبوع، وخالية 100% من أزرار وأدوات التحرير.</span>
+            </div>
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="shrink-0 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-2xs"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>طباعة فورية</span>
+            </button>
+          </div>
+
+          {/* Document Scaled View Container */}
+          <div className="bg-slate-200/80 p-4 sm:p-6 rounded-2xl border border-slate-300 flex justify-center overflow-x-auto min-h-[500px]">
+            <div className="origin-top scale-[0.6] sm:scale-[0.72] shadow-2xl bg-white transition-all transform-gpu">
+              <DocumentRenderer
+                documentData={{
+                  ...documentData,
+                  pageFormat: selectedPageFormat,
+                  showFooterInfo: includeFooterDate,
+                  showPageNumbers: includePageNumbers,
+                }}
+                isEditable={false}
+                containerId="export-modal-live-preview"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
           {/* Progress & Success Notification */}
           {isExporting && (

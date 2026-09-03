@@ -61,33 +61,58 @@ export function triggerBrowserPrint(pageFormat: PageFormat = 'a4_portrait') {
         size: ${dimInfo.printSizeCSS};
         margin: 0;
       }
-      body {
+      html, body {
         margin: 0 !important;
         padding: 0 !important;
-        background: white !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
       }
-      .no-print {
+      /* Strictly hide all editor UI, navigation, sidebars, buttons, and editable canvas */
+      .no-print,
+      .editor-only,
+      [data-editor-only="true"],
+      header,
+      nav,
+      aside,
+      footer.no-print,
+      #canvas-scroll-wrapper,
+      #document-render-canvas,
+      .text-selection-toolbar,
+      button {
         display: none !important;
       }
-      .printable-document-container {
-        box-shadow: none !important;
-        border: none !important;
+      /* Strictly display dedicated clean non-editable print document */
+      #dedicated-clean-print-root,
+      .print-only {
+        display: block !important;
+        position: static !important;
+        left: auto !important;
+        top: auto !important;
+        width: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        transform: none !important;
+      }
+      .print-document {
+        box-shadow: none !important;
+        border: none !important;
+        margin: 0 auto !important;
+      }
+      .print-avoid-break {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
     }
   `;
 
   setTimeout(() => {
     window.print();
-  }, 150);
+  }, 180);
 }
 
 export async function exportDocument(
-  elementId: string = 'document-render-canvas',
+  elementId: string = 'dedicated-clean-print-root',
   doc: DocumentData,
   format: ExportFormat,
   onProgress?: (progress: number, message: string) => void

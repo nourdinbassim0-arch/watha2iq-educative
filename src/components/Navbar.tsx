@@ -35,13 +35,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLanguageChange,
   onOpenAuthModal,
 }) => {
-  const { user, profile, isPro, dailyUsage, platformSettings, isAuthenticated, isOwner, loginDemo, logout } = useAuth();
+  const { user, profile, isPro, isAuthenticated, isOwner, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const t = translations[language];
   const isRtl = language === 'ar';
-
-  const dailyLimit = platformSettings.freeDailyLimit || 3;
-  const remainingToday = Math.max(0, dailyLimit - (dailyUsage?.used || 0));
 
   return (
     <header className="sticky top-0 z-40 bg-[#FDFCFB]/95 backdrop-blur-md border-b border-[#E5E7EB] shadow-2xs" dir={isRtl ? 'rtl' : 'ltr'}>
@@ -215,17 +212,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Right Action Tools: Plan Badge, Language & User Account */}
           <div className="flex items-center gap-2">
             
-            {/* Free Usage Counter Badge for Free Users */}
+            {/* Subscription status indicator for authenticated users */}
             {!isPro && isAuthenticated && (
               <button
                 onClick={() => setActiveTab('pricing')}
-                title="الوثائق المتبقية اليوم مجاناً"
-                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-bold hover:bg-emerald-50 hover:border-emerald-200 transition-colors"
+                title="تفعيل اشتراك المنصة التربوية"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-[11px] font-black hover:bg-amber-100 transition-colors cursor-pointer"
               >
-                <span className="text-slate-500">المتبقي اليوم:</span>
-                <span className={remainingToday === 0 ? 'text-rose-600 font-black' : 'text-emerald-700 font-black'}>
-                  {remainingToday}/{dailyLimit}
-                </span>
+                <span>تفعيل الاشتراك (49 درهم)</span>
               </button>
             )}
 
@@ -249,12 +243,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* User Account or Auth Buttons */}
             {isAuthenticated ? (
               <div className="flex items-center gap-1.5">
-                {user?.uid?.startsWith('demo-') && (
-                  <span className="hidden md:inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-[10px] font-black shadow-2xs">
-                    <Sparkles className="w-3 h-3 text-amber-700" />
-                    <span>حساب تجريبي (PRO)</span>
-                  </span>
-                )}
                 <button
                   onClick={() => setActiveTab('account')}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
@@ -280,24 +268,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             ) : (
               <div className="flex items-center gap-2">
                 <button
-                  id="nav-btn-demo-quick"
-                  onClick={() => loginDemo('TEACHER')}
-                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 rounded-xl text-xs font-black transition-all shadow-xs border border-amber-600/30 cursor-pointer"
-                  title="الدخول الفوري بحساب أستاذ تجريبي كامل الصلاحيات"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>حساب تجريبي</span>
-                </button>
-                <button
                   onClick={() => onOpenAuthModal('login')}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-bold transition-colors"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                 >
                   <LogIn className="w-3.5 h-3.5" />
                   <span>تسجيل الدخول</span>
                 </button>
                 <button
                   onClick={() => onOpenAuthModal('register')}
-                  className="inline-flex items-center gap-1 px-3.5 py-1.5 bg-[#065F46] hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition-colors shadow-2xs"
+                  className="inline-flex items-center gap-1 px-3.5 py-1.5 bg-[#065F46] hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition-colors shadow-2xs cursor-pointer"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
                   <span>إنشاء حساب</span>
@@ -390,23 +369,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 سياسة الخصوصية
               </button>
               <button
-                onClick={() => { loginDemo('TEACHER'); setIsMobileMenuOpen(false); }}
-                className="w-full text-right p-2.5 rounded-xl bg-amber-500 text-slate-950 font-black border border-amber-600 flex items-center justify-between"
-              >
-                <span>الدخول بحساب تجريبي (PRO)</span>
-                <Sparkles className="w-4 h-4 text-slate-950" />
-              </button>
-              <button
                 onClick={() => { onOpenAuthModal('login'); setIsMobileMenuOpen(false); }}
-                className="w-full text-right p-2.5 rounded-xl bg-slate-100 text-slate-800"
+                className="w-full text-right p-2.5 rounded-xl bg-slate-100 text-slate-800 font-bold"
               >
                 تسجيل الدخول
               </button>
               <button
                 onClick={() => { onOpenAuthModal('register'); setIsMobileMenuOpen(false); }}
-                className="w-full text-right p-2.5 rounded-xl bg-[#065F46] text-white"
+                className="w-full text-right p-2.5 rounded-xl bg-[#065F46] text-white font-bold"
               >
-                إنشاء حساب مجاني
+                إنشاء حساب أستاذ جديد
               </button>
             </>
           )}

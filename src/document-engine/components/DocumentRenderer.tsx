@@ -8,6 +8,7 @@ export interface DocumentRendererProps {
   documentData: DocumentData;
   isEditable?: boolean;
   onUpdateField?: (field: keyof DocumentData, value: any) => void;
+  containerId?: string;
   orientation?: 'portrait' | 'landscape';
   marginSize?: 'tight' | 'normal' | 'generous' | 'custom';
   customMarginMm?: number;
@@ -26,6 +27,7 @@ export const DocumentRenderer: React.FC<DocumentRendererProps> = ({
   documentData,
   isEditable = false,
   onUpdateField,
+  containerId = 'document-render-canvas',
   orientation,
   marginSize,
   customMarginMm,
@@ -46,7 +48,10 @@ export const DocumentRenderer: React.FC<DocumentRendererProps> = ({
   const activeFontSize = fontSizePt || documentData.fontSize || 11;
 
   return (
-    <div id="document-render-canvas" className={`printable-document-container flex flex-col items-center justify-center gap-8 ${className}`}>
+    <div
+      id={containerId}
+      className={`printable-document-container print-document document-content flex flex-col items-center justify-center gap-8 ${className}`}
+    >
       {/* Page 1 (Primary High-Fidelity Page) */}
       <DocumentPage
         pageNumber={1}

@@ -11,7 +11,7 @@ import { generateCleanFileName } from '../utils/exportUtils';
  * zero glyph disconnection, and exact A4 physical paper millimeter bounds.
  */
 export async function exportDocumentToHighResPdf(
-  containerId: string = 'document-render-canvas',
+  containerId: string = 'dedicated-clean-print-root',
   documentData: DocumentData,
   onProgress?: (percentage: number, message: string) => void
 ): Promise<void> {
@@ -26,8 +26,14 @@ export async function exportDocumentToHighResPdf(
     }
   }
 
-  // 2. Find page elements
-  const container = document.getElementById(containerId) || document.querySelector('.printable-document-container');
+  // 2. Find page elements (prefer dedicated clean print container to guarantee zero editor controls)
+  const container =
+    document.getElementById('dedicated-clean-print-root') ||
+    document.getElementById(containerId) ||
+    document.getElementById('clean-document-print-canvas') ||
+    document.getElementById('document-render-canvas') ||
+    document.querySelector('.printable-document-container');
+
   if (!container) {
     throw new Error('لم يتم العثور على مساحة عرض الوثيقة (Document Container not found).');
   }
@@ -78,13 +84,26 @@ export async function exportDocumentToHighResPdf(
     const pct = Math.round(30 + (i / totalPages) * 55);
     onProgress?.(pct, `جاري التقاط ومعالجة الصفحة ${pageNum} من ${totalPages} بدقة فائقة...`);
 
-    // Capture page with html-to-image
+    // Capture page with html-to-image with strict filter to guarantee NO editor elements
     const dataUrl = await htmlToImage.toPng(pageEl, {
       pixelRatio: 2.6,
       quality: 0.99,
       backgroundColor: '#ffffff',
       skipFonts: true,
       cacheBust: true,
+      filter: (domNode: HTMLElement) => {
+        if (!domNode || !domNode.classList) return true;
+        if (
+          domNode.classList.contains('editor-only') ||
+          domNode.classList.contains('no-print')
+        ) {
+          return false;
+        }
+        if (domNode.getAttribute && domNode.getAttribute('data-editor-only') === 'true') {
+          return false;
+        }
+        return true;
+      },
     });
 
     if (i > 0) {

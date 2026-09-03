@@ -66,7 +66,7 @@ app.get('/api/payment/config', (req, res) => {
 // Create Checkout Session
 app.post('/api/payment/create-checkout-session', async (req, res) => {
   try {
-    const { uid, userEmail, returnUrl } = req.body;
+    const { uid, userEmail, returnUrl, billingCycle = 'monthly' } = req.body;
 
     if (!uid || !userEmail) {
       return res.status(400).json({ error: 'Missing required user parameters (uid, userEmail)' });
@@ -82,7 +82,9 @@ app.post('/api/payment/create-checkout-session', async (req, res) => {
     }
 
     const origin = returnUrl || req.headers.origin || 'http://localhost:3000';
-    const priceId = process.env.PAYMENT_PRICE_ID_PRO;
+    const isAnnual = billingCycle === 'annual';
+    const intervalStr = isAnnual ? 'year' : 'month';
+    const cycleLabelAr = isAnnual ? 'سنوي (49 درهم / سنة)' : 'شهري (49 درهم / شهر)';
 
     // Build session params
     const sessionParams: any = {
@@ -94,37 +96,27 @@ app.post('/api/payment/create-checkout-session', async (req, res) => {
         userId: uid,
         userEmail: userEmail,
         plan: 'PRO',
+        billingCycle: isAnnual ? 'annual' : 'monthly',
       },
       success_url: `${origin}?payment=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}?payment=cancelled`,
-    };
-
-    if (priceId) {
-      sessionParams.line_items = [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ];
-    } else {
-      // Fallback price data
-      sessionParams.line_items = [
+      line_items: [
         {
           price_data: {
             currency: 'mad',
             product_data: {
-              name: 'اشتراك وثائقي التربوية الاحترافي (PRO)',
-              description: 'وصول غير محدود لإنشاء الجذاذات والفروض والمواثيق مع التصدير الفائق والميزات المتقدمة',
+              name: `اشتراك منصة وثائقي التربوية - ${cycleLabelAr}`,
+              description: 'وصول شامل لإنشاء وتصدير كافة الجذاذات والفروض والمواثيق مع التصدير الفائق والمساعد البيداغوجي',
             },
             unit_amount: 4900, // 49 MAD
             recurring: {
-              interval: 'month',
+              interval: intervalStr,
             },
           },
           quantity: 1,
         },
-      ];
-    }
+      ],
+    };
 
     const session = await stripe.checkout.sessions.create(sessionParams);
 

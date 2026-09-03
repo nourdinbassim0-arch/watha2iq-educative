@@ -6,7 +6,7 @@ import { DocumentWizard } from './components/DocumentWizard';
 import { SavedDocumentsList } from './components/SavedDocumentsList';
 import { EditorToolbar } from './components/DocumentEditor/EditorToolbar';
 import { DocumentPreviewCanvas } from './components/DocumentEditor/DocumentPreviewCanvas';
-import { DocumentDesignPanel } from './document-engine';
+import { DocumentDesignPanel, DocumentRenderer } from './document-engine';
 import { ExportModal } from './components/ExportModal';
 import { AiAssistantModal } from './components/AiAssistantModal';
 import { AuthModal } from './components/AuthModal';
@@ -23,13 +23,14 @@ import { documentService } from './services/documentService';
 import { useAuth } from './context/AuthContext';
 import { Language, translations } from './i18n/translations';
 import { CheckCircle2 } from 'lucide-react';
+import { ensureDocumentDesign } from './utils/documentDefaults';
 
 const STORAGE_KEY = 'wathaiqi_tarbawiya_saved_docs_v2';
 const LANG_STORAGE_KEY = 'wathaiqi_language_selected';
 
 // Create a clean default official Moroccan Fiche Pédagogique template
 function createBlankFiche(teacherName?: string): DocumentData {
-  return {
+  return ensureDocumentDesign({
     id: `doc-${Date.now()}`,
     title: 'جذاذة درس: مهارات التعبير والإنشاء والتواصل',
     documentType: 'fiche_pedagogique',
@@ -120,7 +121,7 @@ function createBlankFiche(teacherName?: string): DocumentData {
     ],
     createdAt: Date.now(),
     updatedAt: Date.now()
-  };
+  });
 }
 
 export function App() {
@@ -253,8 +254,9 @@ export function App() {
 
   // When a document is created in Wizard
   const handleDocumentCreated = (newDoc: DocumentData) => {
+    const formatted = ensureDocumentDesign(newDoc);
     // 1. Immediately set active document and switch to editor tab
-    setCurrentDoc(newDoc);
+    setCurrentDoc(formatted);
     setActiveTab('editor');
     showToast('تم إنشاء الوثيقة التربوية بنجاح! يمكنك الآن تعديلها ومعاينتها وتحميلها.');
 
@@ -267,9 +269,9 @@ export function App() {
       }
 
       if (user?.uid) {
-        documentService.saveDocument(user.uid, newDoc)
+        documentService.saveDocument(user.uid, formatted)
           .then(() => {
-            setSavedDocs((prev) => [newDoc, ...prev.filter(d => d.id !== newDoc.id)]);
+            setSavedDocs((prev) => [formatted, ...prev.filter(d => d.id !== formatted.id)]);
           })
           .catch((err) => {
             console.warn('Auto-save to cloud notice:', err);
@@ -280,13 +282,13 @@ export function App() {
 
   // Direct Export from Dashboard or Saved list
   const handleDirectExport = (docData: DocumentData) => {
-    setCurrentDoc(docData);
+    setCurrentDoc(ensureDocumentDesign(docData));
     setIsExportModalOpen(true);
   };
 
   // Open Document in Editor
   const handleOpenDocument = (docData: DocumentData) => {
-    setCurrentDoc(docData);
+    setCurrentDoc(ensureDocumentDesign(docData));
     setActiveTab('editor');
   };
 
@@ -467,7 +469,10 @@ export function App() {
 
         {/* AUTHENTICATED TAB 5: ACCOUNT & PROFILE */}
         {isAuthenticated && activeTab === 'account' && (
-          <AccountPage onBack={() => setActiveTab('home')} />
+          <AccountPage
+            onBack={() => setActiveTab('home')}
+            onViewPricing={() => setActiveTab('pricing')}
+          />
         )}
 
         {/* AUTHENTICATED TAB 6: ADMIN DASHBOARD (OWNER ONLY) */}
@@ -541,6 +546,31 @@ export function App() {
           </div>
         </div>
       </footer>
+
+      {/* ========================================================== */}
+      {/* DEDICATED CLEAN PRINT & PDF CAPTURE ROOT */}
+      {/* Strictly rendered with isEditable={false} to guarantee zero editor controls */}
+      {/* ========================================================== */}
+      <div
+        id="dedicated-clean-print-root"
+        className="print-only print-document-clean-wrapper"
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: '-99999px',
+          width: currentDoc.pageFormat?.includes('landscape') ? '297mm' : '210mm',
+          minHeight: currentDoc.pageFormat?.includes('landscape') ? '210mm' : '297mm',
+          zIndex: -9999,
+          pointerEvents: 'none',
+        }}
+      >
+        <DocumentRenderer
+          documentData={currentDoc}
+          isEditable={false}
+          containerId="clean-document-print-canvas"
+        />
+      </div>
 
       {/* Modals */}
       {isExportModalOpen && (

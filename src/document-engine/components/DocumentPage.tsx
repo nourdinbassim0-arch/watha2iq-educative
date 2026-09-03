@@ -1,9 +1,15 @@
 import React from 'react';
-import { DocumentDecorations, DecorationTemplate, BorderType, DecorationIntensity } from './DocumentDecorations';
+import { DocumentDecorations } from './DocumentDecorations';
 import { DocumentHeader } from './DocumentHeader';
 import { DocumentFooter } from './DocumentFooter';
 import { DocumentData } from '../../types';
 import { getFontFamilyCSS } from '../fonts';
+import {
+  getDefaultMarginConfig,
+  getDefaultBorderConfig,
+  getDefaultDecorationConfig,
+  getDefaultLogoConfig,
+} from '../../utils/documentDefaults';
 
 export interface DocumentPageProps {
   pageNumber?: number;
@@ -12,16 +18,16 @@ export interface DocumentPageProps {
   isEditable?: boolean;
   onUpdateField?: (field: keyof DocumentData, value: any) => void;
   orientation?: 'portrait' | 'landscape';
-  marginSize?: 'tight' | 'normal' | 'generous' | 'custom';
+  marginSize?: 'tight' | 'normal' | 'generous' | 'academic' | 'custom';
   customMarginMm?: number;
   fontFamily?: string;
   fontSizePt?: number;
   lineHeight?: number;
-  decorationTemplate?: DecorationTemplate;
-  borderType?: BorderType;
+  decorationTemplate?: any;
+  borderType?: any;
   borderColor?: string;
   borderWidth?: number;
-  decorationIntensity?: DecorationIntensity;
+  decorationIntensity?: any;
   children?: React.ReactNode;
   className?: string;
 }
@@ -33,28 +39,30 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({
   isEditable = false,
   onUpdateField,
   orientation = 'portrait',
-  marginSize = 'normal',
-  customMarginMm,
   fontFamily = 'cairo',
   fontSizePt = 11,
   lineHeight = 1.6,
-  decorationTemplate = 'classic',
-  borderType = 'full',
-  borderColor = '#065f46',
-  borderWidth = 1.5,
-  decorationIntensity = 'medium',
   children,
   className = '',
 }) => {
-  const isLandscape = orientation === 'landscape' || (documentData.pageFormat && documentData.pageFormat.includes('landscape'));
+  const isLandscape =
+    orientation === 'landscape' ||
+    (documentData.pageFormat && documentData.pageFormat.includes('landscape'));
 
-  // Margin calculation in mm
-  let marginMm = 15;
-  if (marginSize === 'tight') marginMm = 10;
-  if (marginSize === 'generous') marginMm = 22;
-  if (marginSize === 'custom' && customMarginMm) marginMm = customMarginMm;
+  // 1. Resolve Margin Settings from marginConfig (Top, Bottom, Right, Left in mm)
+  const marginConfig = documentData.marginConfig || getDefaultMarginConfig(documentData);
+  const topMm = marginConfig.topMm ?? 14;
+  const bottomMm = marginConfig.bottomMm ?? 14;
+  const rightMm = marginConfig.rightMm ?? 15;
+  const leftMm = marginConfig.leftMm ?? 15;
+
+  // 2. Resolve Border and Decoration configs
+  const borderConfig = documentData.borderConfig || getDefaultBorderConfig(documentData);
+  const decorationConfig = documentData.decorationConfig || getDefaultDecorationConfig(documentData);
+  const logoConfig = documentData.logoConfig || getDefaultLogoConfig(documentData);
 
   const fontCss = getFontFamilyCSS(fontFamily || documentData.fontFamily);
+  const titleSpacing = logoConfig.titleSpacingMm ?? 5;
 
   return (
     <div
@@ -63,7 +71,8 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({
         isLandscape ? 'w-[1122px] min-h-[793px]' : 'w-[794px] min-h-[1123px]'
       } ${className}`}
       style={{
-        padding: `${marginMm}mm`,
+        // CSS padding order: top right bottom left
+        padding: `${topMm}mm ${rightMm}mm ${bottomMm}mm ${leftMm}mm`,
         fontFamily: fontCss,
         fontSize: `${fontSizePt}pt`,
         lineHeight: lineHeight,
@@ -73,11 +82,8 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({
     >
       {/* 1. Page Frame & Vector Decorations */}
       <DocumentDecorations
-        template={decorationTemplate}
-        borderType={borderType}
-        borderColor={borderColor}
-        borderWidth={borderWidth}
-        intensity={decorationIntensity}
+        borderConfig={borderConfig}
+        decorationConfig={decorationConfig}
       />
 
       {/* 2. Page Content Container */}
@@ -93,15 +99,23 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({
             language={documentData.language || 'ar'}
           />
 
-          {/* Document Title Banner */}
-          <div className="text-center my-3 pb-1">
-            <h1 className="inline-block px-6 py-2 rounded-xl bg-emerald-900 text-white font-black text-sm sm:text-base tracking-wide shadow-2xs">
-              {documentData.title || 'وثيقة تربوية'}
-            </h1>
-          </div>
+          {/* Document Title Banner with balanced spacing */}
+          {documentData.title && (
+            <div
+              style={{
+                marginTop: `${titleSpacing}mm`,
+                marginBottom: `${titleSpacing + 2}mm`,
+              }}
+              className="text-center select-none"
+            >
+              <h1 className="inline-block px-7 py-2 rounded-xl bg-emerald-900 text-white font-black text-sm sm:text-base tracking-wide shadow-2xs border border-emerald-950">
+                {documentData.title}
+              </h1>
+            </div>
+          )}
 
           {/* Body Content */}
-          <div className="mt-3">
+          <div className="mt-2">
             {children}
           </div>
         </div>
@@ -112,7 +126,7 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({
           pageNumber={pageNumber}
           totalPages={totalPages}
           showPageNumbers={documentData.showPageNumbers ?? true}
-          showSignatures={documentData.showSignatures ?? true}
+          showSignatures={documentData.showTeacherSignature || documentData.showInspectorSignature}
           showFooterInfo={documentData.showFooterInfo ?? true}
           language={documentData.language || 'ar'}
         />

@@ -15,17 +15,20 @@ import {
 
 interface AccountPageProps {
   onBack: () => void;
+  onViewPricing?: () => void;
 }
 
-export const AccountPage: React.FC<AccountPageProps> = ({ onBack }) => {
+export const AccountPage: React.FC<AccountPageProps> = ({ onBack, onViewPricing }) => {
   const {
     user,
     profile,
+    isPro,
     logout,
     resendVerificationEmail,
     updateUserPassword,
     updateUserProfile,
     refreshUser,
+    activateSubscription,
   } = useAuth();
 
   const [fullName, setFullName] = useState(profile?.name || user?.displayName || '');
@@ -149,13 +152,13 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onBack }) => {
               </div>
 
               <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
-                <span>الباقة الحالية:</span>
+                <span>حالة الاشتراك:</span>
                 <span className={`px-2.5 py-1 rounded-full font-bold text-[11px] ${
-                  profile?.plan === 'PRO' || profile?.role === 'OWNER'
-                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                    : 'bg-slate-100 text-slate-700'
+                  isPro
+                    ? 'bg-emerald-100 text-emerald-900 border border-emerald-300 dark:bg-emerald-950 dark:text-emerald-200'
+                    : 'bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950 dark:text-amber-200'
                 }`}>
-                  {profile?.plan === 'PRO' || profile?.role === 'OWNER' ? 'الاحترافية (PRO)' : 'الأساسية (FREE)'}
+                  {isPro ? 'مشترك مفعّل (PRO)' : 'غير مفعّل (49 درهم)'}
                 </span>
               </div>
 
@@ -175,14 +178,25 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onBack }) => {
               </div>
             </div>
 
-            {/* Plan Usage Info */}
+            {/* Subscription Action Info */}
             <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 text-right">
-              <div className="flex items-center justify-between text-xs mb-1.5">
-                <span className="font-bold text-slate-700 dark:text-slate-300">الاستخدام اليومي:</span>
-                <span className="font-mono text-emerald-700 dark:text-emerald-400 font-bold">
-                  {profile?.plan === 'PRO' || profile?.role === 'OWNER' ? 'غير محدود (PRO)' : '3 وثائق / يومياً'}
+              <div className="flex items-center justify-between text-xs mb-2">
+                <span className="font-bold text-slate-700 dark:text-slate-300">الوصول للوثائق:</span>
+                <span className={`font-bold text-xs ${isPro ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-600'}`}>
+                  {isPro ? 'غير محدود لكافة الجذاذات' : 'يتطلب تفعيل الاشتراك'}
                 </span>
               </div>
+
+              {!isPro && (
+                <button
+                  type="button"
+                  onClick={onViewPricing}
+                  className="w-full py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer mt-2"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>تفعيل الاشتراك (49 درهم)</span>
+                </button>
+              )}
             </div>
 
             <button

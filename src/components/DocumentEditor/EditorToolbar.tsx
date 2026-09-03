@@ -433,61 +433,50 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         {/* Right Section Tools: Official Emblems, Signatures, Margins */}
         <div className="flex items-center flex-wrap gap-2">
           
-          {/* Official Emblem Toggle */}
+          {/* Official Emblem & Logo Toggle */}
           <button
-            onClick={() => onUpdateField('showOfficialEmblem', !showEmblem)}
-            title="إظهار أو إخفاء الشعار الرسمي للمملكة"
-            className={`inline-flex items-center gap-1 px-2 py-1 rounded-xl text-[11px] font-bold border transition-colors ${
-              showEmblem 
+            onClick={() => {
+              const next = !(documentData.logoConfig?.show ?? (showEmblem || showLogo));
+              onUpdateField('showOfficialEmblem', next);
+              onUpdateField('showSchoolLogo', next);
+              onUpdateField('logoConfig', {
+                ...(documentData.logoConfig || {}),
+                show: next,
+              });
+            }}
+            title="إظهار أو إخفاء الشعار في رأس الوثيقة"
+            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-colors ${
+              (documentData.logoConfig?.show ?? (showEmblem || showLogo))
                 ? 'bg-[#ECFDF5] border-[#A7F3D0] text-[#065F46]' 
                 : 'bg-white border-[#E5E7EB] text-[#9CA3AF]'
             }`}
           >
             <Shield className="w-3.5 h-3.5" />
-            <span>{showEmblem ? 'الشعار الرسمي' : 'الشعار مخفي'}</span>
-          </button>
-
-          {/* School Logo Toggle */}
-          <button
-            onClick={() => onUpdateField('showSchoolLogo', !showLogo)}
-            title="إظهار أو إخفاء شعار المؤسسة"
-            className={`inline-flex items-center gap-1 px-2 py-1 rounded-xl text-[11px] font-bold border transition-colors ${
-              showLogo 
-                ? 'bg-[#ECFDF5] border-[#A7F3D0] text-[#065F46]' 
-                : 'bg-white border-[#E5E7EB] text-[#9CA3AF]'
-            }`}
-          >
-            <Building2 className="w-3.5 h-3.5" />
-            <span>{showLogo ? 'شعار المؤسسة' : '+ شعار المدرسة'}</span>
+            <span>{(documentData.logoConfig?.show ?? (showEmblem || showLogo)) ? 'الشعار: مفعّل' : 'الشعار: مخفي'}</span>
           </button>
 
           {/* Teacher Signature Toggle */}
           <button
-            onClick={() => onUpdateField('showTeacherSignature', !documentData.showTeacherSignature)}
-            title="توقيع الأستاذ(ة)"
-            className={`inline-flex items-center gap-1 px-2 py-1 rounded-xl text-[11px] font-bold border transition-colors ${
-              documentData.showTeacherSignature 
+            onClick={() => {
+              const next = !(documentData.signaturesConfig?.showSignatures ?? documentData.showTeacherSignature);
+              onUpdateField('showTeacherSignature', next);
+              onUpdateField('showInspectorSignature', next);
+              onUpdateField('signaturesConfig', {
+                ...(documentData.signaturesConfig || { layout: 'two_columns', items: [] }),
+                showSignatures: next,
+              });
+            }}
+            title="إظهار أو إخفاء التوقيعات أسفل الوثيقة"
+            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-colors ${
+              (documentData.signaturesConfig?.showSignatures ?? documentData.showTeacherSignature)
                 ? 'bg-blue-50 border-blue-200 text-blue-800' 
                 : 'bg-white border-slate-200 text-slate-400'
             }`}
           >
             <PenTool className="w-3.5 h-3.5" />
-            <span>{documentData.showTeacherSignature ? 'توقيع الأستاذ: مفعّل' : 'توقيع الأستاذ: مخفي'}</span>
+            <span>{(documentData.signaturesConfig?.showSignatures ?? documentData.showTeacherSignature) ? 'التوقيعات: مفعّلة' : 'التوقيعات: مخفية'}</span>
           </button>
 
-          {/* School Administration Seal Toggle */}
-          <button
-            onClick={() => onUpdateField('showSchoolSignature', !(documentData.showSchoolSignature ?? true))}
-            title="إظهار أو إخفاء خاتم وتوقيع الإدارة التربوية أسفل الوثيقة"
-            className={`inline-flex items-center gap-1 px-2 py-1 rounded-xl text-[11px] font-bold border transition-colors ${
-              (documentData.showSchoolSignature ?? true)
-                ? 'bg-amber-50 border-amber-200 text-amber-900' 
-                : 'bg-white border-slate-200 text-slate-400'
-            }`}
-          >
-            <Building2 className="w-3.5 h-3.5" />
-            <span>{(documentData.showSchoolSignature ?? true) ? 'خاتم المؤسسة: مفعّل' : 'خاتم المؤسسة: مخفي'}</span>
-          </button>
 
         </div>
 

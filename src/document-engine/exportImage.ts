@@ -6,7 +6,7 @@ import { generateCleanFileName } from '../utils/exportUtils';
  * High-Resolution PNG Document Exporter
  */
 export async function exportDocumentToHighResImage(
-  containerId: string = 'document-render-canvas',
+  containerId: string = 'dedicated-clean-print-root',
   documentData: DocumentData,
   onProgress?: (percentage: number, message: string) => void
 ): Promise<void> {
@@ -20,7 +20,13 @@ export async function exportDocumentToHighResImage(
     }
   }
 
-  const container = document.getElementById(containerId) || document.querySelector('.printable-document-container');
+  const container =
+    document.getElementById('dedicated-clean-print-root') ||
+    document.getElementById(containerId) ||
+    document.getElementById('clean-document-print-canvas') ||
+    document.getElementById('document-render-canvas') ||
+    document.querySelector('.printable-document-container');
+
   if (!container) {
     throw new Error('لم يتم العثور على مساحة عرض الوثيقة.');
   }
@@ -47,6 +53,19 @@ export async function exportDocumentToHighResImage(
     backgroundColor: '#ffffff',
     skipFonts: true,
     cacheBust: true,
+    filter: (domNode: HTMLElement) => {
+      if (!domNode || !domNode.classList) return true;
+      if (
+        domNode.classList.contains('editor-only') ||
+        domNode.classList.contains('no-print')
+      ) {
+        return false;
+      }
+      if (domNode.getAttribute && domNode.getAttribute('data-editor-only') === 'true') {
+        return false;
+      }
+      return true;
+    },
   });
 
   onProgress?.(85, 'جاري تنزيل الصورة...');

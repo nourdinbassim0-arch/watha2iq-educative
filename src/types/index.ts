@@ -86,6 +86,113 @@ export type FontFamily =
 
 export type UserRole = 'OWNER' | 'ADMIN' | 'TEACHER' | 'owner' | 'admin' | 'teacher';
 
+export type HeaderTemplate = 'official' | 'center_logo' | 'minimal' | 'academic' | 'custom';
+
+export interface HeaderFieldsVisibility {
+  kingdom?: boolean;          // المملكة المغربية
+  ministry?: boolean;         // وزارة التربية الوطنية والتعليم الأولي والرياضة
+  academy?: boolean;          // الأكاديمية الجهوية للتربية والتكوين
+  directorate?: boolean;      // المديرية الإقليمية
+  schoolName?: boolean;       // اسم المؤسسة
+  academicYear?: boolean;     // السنة الدراسية
+  subject?: boolean;          // المادة
+  grade?: boolean;            // المستوى
+  teacher?: boolean;          // الأستاذ(ة)
+  date?: boolean;             // التاريخ
+}
+
+export type LogoPosition = 'top_center' | 'top_right' | 'top_left' | 'custom';
+export type LogoSize = 'sm' | 'md' | 'lg' | 'custom';
+
+export interface DocumentLogoConfig {
+  show: boolean;
+  position: LogoPosition;
+  size: LogoSize;
+  customWidthMm?: number;      // in mm (e.g. 35)
+  customHeightMm?: number;     // in mm (e.g. 26)
+  customPosX?: number;         // percentage (0-100) or offset
+  customPosY?: number;
+  useCustomLogo: boolean;      // true if user uploaded custom logo
+  customLogoUrl?: string;      // data URL or image URL
+  topMarginMm?: number;        // distance from page top / content
+  bottomMarginMm?: number;     // distance below logo
+  sideSpacingMm?: number;      // spacing between logo and ministry text
+  titleSpacingMm?: number;     // spacing between logo/header and title
+}
+
+export interface DocumentHeaderConfig {
+  template: HeaderTemplate;
+  showOfficialHeader: boolean;
+  visibleFields: HeaderFieldsVisibility;
+  customHeaderTitle?: string;
+  spacingBelowHeaderMm?: number;
+}
+
+export type PageBorderPreset = 'none' | 'simple' | 'islamic' | 'moroccan' | 'academic' | 'decorative';
+export type BorderScope = 'full' | 'corners' | 'partial' | 'none';
+
+export interface DocumentBorderConfig {
+  preset: PageBorderPreset;
+  scope: BorderScope;
+  thickness: number;          // in pt/px: 1, 1.5, 2, 3
+  color: string;              // hex
+  insetMm: number;            // distance from page edge in mm (e.g. 6mm)
+}
+
+export type IslamicDecorationStyle = 
+  | 'classic_islamic'       // 1. كلاسيكي إسلامي
+  | 'moroccan_geometric'    // 2. مغربي هندسي
+  | 'moroccan_zellij'       // 3. زليج مغربي
+  | 'simple_islamic'        // 4. إسلامي بسيط
+  | 'academic_green'        // 5. أخضر أكاديمي
+  | 'geometric'             // 6. هندسي
+  | 'corner_ornaments'      // 7. زخارف الزوايا
+  | 'academic_official'     // 8. رسمي أكاديمي
+  | 'top_only'              // 9. زخرفة علوية فقط
+  | 'bottom_only';          // 10. زخرفة سفلية فقط
+
+export type DecorationIntensityLevel = 'none' | 'light' | 'medium' | 'strong';
+
+export interface DocumentDecorationConfig {
+  style: IslamicDecorationStyle;
+  intensity: DecorationIntensityLevel;
+  primaryColor?: string;
+  accentColor?: string;
+}
+
+export interface DocumentMarginConfig {
+  preset: 'tight' | 'normal' | 'generous' | 'academic' | 'custom';
+  topMm: number;
+  bottomMm: number;
+  rightMm: number;
+  leftMm: number;
+}
+
+export type SignatureLayout = 'one_center' | 'two_columns' | 'three_columns' | 'four_columns' | 'custom';
+
+export interface DocumentSignatureItem {
+  id: string;
+  title: string;       // مثلا: توقيع الأستاذ(ة)
+  name: string;        // مثلا: ذ. محمد العلمي
+  role?: string;
+  show: boolean;
+  order: number;
+}
+
+export interface DocumentSignaturesConfig {
+  showSignatures: boolean; // Main ON/OFF switch!
+  layout: SignatureLayout;
+  items: DocumentSignatureItem[];
+}
+
+export interface DocumentFooterConfig {
+  showFooter: boolean;
+  showPageNumbers: boolean;
+  customText?: string;
+  showDecoration: boolean;
+  showAcademicYear: boolean;
+}
+
 export interface CustomSignature {
   id: string;
   title: string;          // مثلا: توقيع الأستاذ(ة)، الإدارة التربوية، السيد المفتش، ولي أمر التلميذ
@@ -265,6 +372,15 @@ export interface DocumentData {
   pageFormat: PageFormat;
   watermarkText?: string;
   customSignatures?: CustomSignature[];
+
+  // Professional Layout & Design Engine Configurations
+  logoConfig?: DocumentLogoConfig;
+  headerConfig?: DocumentHeaderConfig;
+  borderConfig?: DocumentBorderConfig;
+  decorationConfig?: DocumentDecorationConfig;
+  marginConfig?: DocumentMarginConfig;
+  signaturesConfig?: DocumentSignaturesConfig;
+  footerConfig?: DocumentFooterConfig;
   
   // Content specific to Fiche Pédagogique (جذاذة تربوية)
   generalCompetences?: string[];

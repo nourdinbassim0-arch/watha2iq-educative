@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Mail, Lock, User as UserIcon, X, AlertCircle, CheckCircle, ShieldCheck, ArrowRight, Copy, Check, ExternalLink, Sparkles, Zap } from 'lucide-react';
+import { Mail, Lock, User as UserIcon, X, AlertCircle, CheckCircle, ShieldCheck, ArrowRight, Copy, Check, ExternalLink } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -13,7 +13,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   initialMode = 'login',
 }) => {
-  const { login, loginWithGoogle, loginDemo, register, resetPassword, resendVerificationEmail, isFirebaseReady } = useAuth();
+  const { login, loginWithGoogle, register, resetPassword, resendVerificationEmail, isFirebaseReady } = useAuth();
   
   const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'verify_notice'>(initialMode);
   
@@ -56,18 +56,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       handleClose();
     } else {
       setErrorMessage(res.message || 'فشل تسجيل الدخول بحساب Google.');
-    }
-  };
-
-  const handleDemoSignIn = async (role: 'TEACHER' | 'OWNER' = 'TEACHER') => {
-    setLoading(true);
-    setErrorMessage('');
-    const res = await loginDemo(role);
-    setLoading(false);
-    if (res.success) {
-      handleClose();
-    } else {
-      setErrorMessage(res.message || 'تعذر تسجيل الدخول بالحساب التجريبي.');
     }
   };
 
@@ -429,53 +417,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </button>
               </div>
             </form>
-          )}
-
-          {/* Quick Demo Mode for Testing */}
-          {(mode === 'login' || mode === 'register') && (
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-              <div className="p-3.5 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/50 dark:from-amber-950/30 dark:to-orange-950/20 border border-amber-200 dark:border-amber-800/80 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center shadow-xs">
-                      <Sparkles className="w-3.5 h-3.5" />
-                    </div>
-                    <span className="text-xs font-bold text-amber-950 dark:text-amber-200">
-                      تجربة المنصة فوراً (حساب تجريبي)
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-200/80 text-amber-950 dark:bg-amber-900/60 dark:text-amber-200">
-                    بدون انتظار
-                  </span>
-                </div>
-
-                <p className="text-[11px] text-amber-900/80 dark:text-amber-300/80 leading-relaxed">
-                  يمكنك الدخول فوراً واختبار كامل ميزات الموقع، وإعداد الجذاذات وطباعتها وتجربة باقة PRO بدون الحاجة لكتابة بريد أو كلمة سر:
-                </p>
-
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => handleDemoSignIn('TEACHER')}
-                    disabled={loading}
-                    className="py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-black text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Zap className="w-3.5 h-3.5 fill-current" />
-                    <span>أستاذ ممارس (PRO)</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleDemoSignIn('OWNER')}
-                    disabled={loading}
-                    className="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-95 text-amber-300 font-black text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 border border-slate-700 cursor-pointer"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>مشرف عام (Admin)</span>
-                  </button>
-                </div>
-              </div>
-            </div>
           )}
 
           {/* Mode: Forgot Password */}

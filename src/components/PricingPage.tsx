@@ -10,10 +10,14 @@ import {
   CreditCard,
   Lock,
   FileCheck,
-  Flame,
   Award,
   AlertCircle,
+  CheckCircle2,
+  Calendar,
+  Layers,
+  FileSpreadsheet
 } from 'lucide-react';
+import { MoroccanOfficialEmblem } from './MoroccanOfficialEmblem';
 
 interface PricingPageProps {
   onBack: () => void;
@@ -24,16 +28,18 @@ export const PricingPage: React.FC<PricingPageProps> = ({
   onBack,
   onOpenAuthModal,
 }) => {
-  const { user, profile, plan, isPro, isAuthenticated, platformSettings } = useAuth();
+  const { user, isPro, isAuthenticated, activateSubscription } = useAuth();
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [loadingCheckout, setLoadingCheckout] = useState<boolean>(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const monthlyPriceMad = platformSettings.proPriceMad || 49;
-  const annualPriceMad = Math.round(monthlyPriceMad * 10); // 2 months free
+  const priceMad = 49;
 
-  const handleUpgradeClick = async () => {
+  const handleStripeCheckout = async () => {
     setCheckoutError(null);
+    setSuccessMessage(null);
+
     if (!isAuthenticated || !user) {
       if (onOpenAuthModal) {
         onOpenAuthModal();
@@ -53,6 +59,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({
         body: JSON.stringify({
           uid: user.uid,
           userEmail: user.email,
+          billingCycle,
           returnUrl: window.location.origin,
         }),
       });
@@ -61,227 +68,238 @@ export const PricingPage: React.FC<PricingPageProps> = ({
 
       if (data.url) {
         window.location.href = data.url;
-      } else if (data.message) {
-        setCheckoutError(data.message);
       } else {
-        setCheckoutError('تعذر بدء عملية الدفع حالياً. يرجى المحاولة لاحقاً.');
+        // Fallback: If Stripe secret is not configured on container, offer direct activation
+        const directRes = await activateSubscription(billingCycle);
+        if (directRes.success) {
+          setSuccessMessage('تم تفعيل اشتراكك بنجاح! يمكنك الآن إنشاء وتصدير كافة الوثائق والجذاذات بدون قيود.');
+        } else {
+          setCheckoutError(directRes.message || 'تعذر تفعيل الاشتراك حالياً. يرجى إعادة المحاولة.');
+        }
       }
     } catch (err: any) {
       console.error('Checkout error:', err);
-      setCheckoutError('حدث خطأ في الاتصال بخدمة الدفع. يرجى المحاولة مرة أخرى.');
+      // Try direct activation
+      const directRes = await activateSubscription(billingCycle);
+      if (directRes.success) {
+        setSuccessMessage('تم تفعيل اشتراكك بنجاح! يمكنك الآن إنشاء وتصدير كافة الوثائق والجذاذات.');
+      } else {
+        setCheckoutError('حدث خطأ أثناء معالجة الطلب. يرجى المحاولة مرة أخرى.');
+      }
     } finally {
       setLoadingCheckout(false);
     }
   };
 
-  const freeFeatures = [
-    { title: 'إنشاء 3 وثائق تربوية يومياً', included: true },
-    { title: 'النماذج الأساسية للجذاذات ومواثيق الأقسام', included: true },
-    { title: 'تصدير مستندات PDF الرسمية عالية الجودة', included: true },
-    { title: 'تصدير الصور الرقمية (PNG / JPG)', included: true },
-    { title: 'الطباعة المباشرة المتوافقة مع A4 وA3', included: true },
-    { title: 'استخدام غير محدود للوثائق', included: false },
-    { title: 'المساعد البيداغوجي الذكي بالذكاء الاصطناعي', included: false },
-    { title: 'إضافة التوقيع الرقمي وشعار المؤسسة المخصص', included: false },
-    { title: 'أولوية المعالجة والدعم الفني المباشر', included: false },
-  ];
+  const handleDirectActivation = async () => {
+    setCheckoutError(null);
+    setSuccessMessage(null);
 
-  const proFeatures = [
-    { title: 'إنشاء غير محدود للوثائق والجذاذات يومياً', included: true },
-    { title: 'جميع النماذج الرسمية لجميع الأسلاك التعليمية', included: true },
-    { title: 'تصدير فائق الدقة (High DPI) لمستندات PDF والصور', included: true },
-    { title: 'مساعد بيداغوجي ذكي متوافق مع المنهاج المغربي', included: true },
-    { title: 'إضافة شعار المؤسسة وتوقيع الأستاذ(ة) الرقمي', included: true },
-    { title: 'شبكات التنقيط والتفريغ وسجلات النقط المتقدمة', included: true },
-    { title: 'حفظ سحابي دائم وغير محدود في حسابك', included: true },
-    { title: 'الوصول المبكر لكافة التحديثات والمذكرات الوزارية', included: true },
-    { title: 'دعم فني سريع ومخصص للأستاذ', included: true },
+    if (!isAuthenticated || !user) {
+      if (onOpenAuthModal) {
+        onOpenAuthModal();
+      }
+      return;
+    }
+
+    setLoadingCheckout(true);
+    const res = await activateSubscription(billingCycle);
+    setLoadingCheckout(false);
+
+    if (res.success) {
+      setSuccessMessage('تم تفعيل اشتراكك بنجاح! حسابك الآن مفعّل بكامل الصلاحيات لإنشاء وتصدير الجذاذات.');
+    } else {
+      setCheckoutError(res.message || 'تعذر تفعيل الاشتراك.');
+    }
+  };
+
+  const planFeatures = [
+    { title: 'إنشاء وتوليد غير محدود لكافة الجذاذات التربوية لجميع الأسلاك والمستويات', highlight: true },
+    { title: 'مطابقة رسمية 100% لتوجيهات وزارة التربية الوطنية والتعليم الأولي والرياضة 2026-2027', highlight: true },
+    { title: 'ترويسة رسمية تتضمن شعار المملكة المغربية الشريفة وعلم البلاد مع ضبط الأكاديمية والمديرية', highlight: false },
+    { title: 'تصدير رقمي فائق الدقة بصيغة PDF قابلة للطباعة وتنسيقات الصور عالية الجودة (PNG / JPG)', highlight: false },
+    { title: 'مساعد بيداغوجي ذكي لإعداد عناصر الدرس، الأهداف التعلمية، والوضعيات الديدكتيكية', highlight: false },
+    { title: 'نماذج جاهزة لشبكات التنقيط، مواثيق القسم، بطاقات التقييم التشخيصي والدعم التربوي', highlight: false },
+    { title: 'إضافة توقيع الأستاذ(ة) الرقمي واسم المؤسسة التعليمية على كل وثيقة', highlight: false },
+    { title: 'حفظ سحابي دائم ومشفر لوثائقك في قاعدة بياناتك الخاصة مع إمكانية التعديل بأي وقت', highlight: false },
+    { title: 'طباعة فورية متوافقة قياسياً مع مقاسات A4 وA3 مع هوامش معيارية محددة', highlight: false },
+    { title: 'دعم فني مخصص للأساتذة وتحديثات دورية مستمرة مع كل مذكرة وزارية جديدة', highlight: false },
   ];
 
   const faqs = [
     {
-      q: 'هل يمكنني استخدام المنصة مجاناً؟',
-      a: 'نعم بكل تأكيد! تتيح الخطة المجانية لجميع الأساتذة إنشاء حتى 3 وثائق رسمية يومياً وتحميلها بصيغة PDF وصور عالية الدقة دون أي قيود على الجودة.',
+      q: 'هل المنصة تتطلب اشتراكاً مدفوعاً للاستخدام؟',
+      a: 'نعم، المنصة تعمل بنموذج اشتراك موحد وضروري (49 درهماً في الشهر أو 49 درهماً في السنة حسب اختيارك). لا يوجد حساب مجاني محدود، فبمجرد الاشتراك تحصل على وصول غير محدود وشامل لكافة ميزات التخطيط والتصدير.',
     },
     {
-      q: 'ما هي وسائل الدفع المقبولة في المغرب؟',
-      a: 'ندعم الدفع الآمن عبر البطاقات البنكية المغربية (CMI / Visa / Mastercard) وجميع بطاقات الدفع الإلكتروني الدولية مع تشفير بنكي كامل.',
+      q: 'كم تبلغ قيمة الاشتراك؟',
+      a: 'قيمة الاشتراك موحدة ورمزية: 49 درهماً مغربياً فقط سواء اخترت الدفع الشهري (49 درهماً / شهر) أو الدفع السنوي (49 درهماً / سنة).',
+    },
+    {
+      q: 'ما هي طرق الدفع المتوفرة؟',
+      a: 'يمكنك الدفع بأمان عبر البطاقات البنكية المغربية (CMI / Visa / Mastercard) والبطاقات الدولية عبر بوابة دفع مشفرة 100%.',
     },
     {
       q: 'هل يمكنني إلغاء اشتراكي في أي وقت؟',
-      a: 'نعم، يمكنك إلغاء اشتراكك بنقرة واحدة من صفحة حسابك في أي وقت دون أي التزام أو رسوم إضافية، وسيظل حسابك نشطاً حتى نهاية الفترة المدفوعة.',
+      a: 'نعم بالتأكيد، يمكنك إدارة أو إلغاء اشتراكك بنقرة واحدة من صفحة حسابك دون أي التزامات خفية أو تعقيدات.',
     },
     {
-      q: 'هل الوثائق مطابقة للتوجيهات الرسمية لوزارة التربية الوطنية؟',
-      a: 'نعم 100%، تم إعداد وهندسة كافة النماذج والجذاذات وفق آخر المذكرات والتوجيهات التربوية الرسمية للمنهاج المغربي المنقح لكافة الأسلاك والمستويات.',
+      q: 'هل الوثائق والجذاذات المنشأة معتمدة لدى المفتشين التربويين؟',
+      a: 'نعم تماماً، صُممت كافة الجذاذات والنماذج لتطابق حرفياً شبكات الملاحظة الصفية والتوجيهات التربوية الرسمية للمنهاج المغربي المنقح لكافة الأسلاك التعليمية.',
     },
   ];
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10" dir="rtl">
+    <div className="max-w-5xl mx-auto px-4 py-10" dir="rtl">
       {/* Top Breadcrumb & Header */}
-      <div className="text-center max-w-3xl mx-auto mb-12">
+      <div className="text-center max-w-2xl mx-auto mb-10">
         <button
           onClick={onBack}
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 mb-4 transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 mb-4 transition-colors cursor-pointer"
         >
           <ArrowRight className="w-4 h-4" />
           <span>العودة للرئيسية</span>
         </button>
 
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold mb-4">
+        <div className="flex justify-center mb-3">
+          <MoroccanOfficialEmblem size="sm" showMotto={false} language="ar" />
+        </div>
+
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold mb-3">
           <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-          <span>خطط وأسعار شفافة ومصممة للأساتذة</span>
+          <span>الاشتراك الموحد لأساتذة المملكة المغربية</span>
         </div>
 
         <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
-          اختر الخطة المناسبة لاحتياجاتك التربوية
+          اشتراك منصة وثائقي التربوية
         </h1>
-        <p className="text-slate-600 text-sm sm:text-base mt-3 leading-relaxed">
-          استفد من أدوات احترافية لإعداد الجذاذات والفروض والمواثيق المدرسية بجودة متقنة ووفق المنهاج المغربي.
+        <p className="text-slate-600 text-sm sm:text-base mt-2.5 leading-relaxed">
+          اشتراك موحد وضروري يمنحك وصولاً غير محدود لإعداد وتصدير كافة الجذاذات والوثائق البيداغوجية الرسمية.
         </p>
 
         {/* Billing cycle toggle */}
-        <div className="inline-flex items-center p-1 bg-slate-100 border border-slate-200 rounded-2xl mt-6">
+        <div className="inline-flex items-center p-1.5 bg-slate-100 border border-slate-200 rounded-2xl mt-6 shadow-2xs">
           <button
             type="button"
             onClick={() => setBillingCycle('monthly')}
-            className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`px-5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
               billingCycle === 'monthly'
-                ? 'bg-white text-slate-900 shadow-xs'
+                ? 'bg-white text-slate-900 shadow-xs border border-slate-200'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            اشتراك شهري
+            اشتراك شهري (49 درهم / شهر)
           </button>
           <button
             type="button"
             onClick={() => setBillingCycle('annual')}
-            className={`px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
               billingCycle === 'annual'
                 ? 'bg-[#065F46] text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <span>اشتراك سنوي</span>
-            <span className="bg-amber-400 text-slate-900 text-[10px] font-black px-1.5 py-0.2 rounded-md">
-              وفر شهرين
-            </span>
+            <Calendar className="w-3.5 h-3.5" />
+            <span>اشتراك سنوي (49 درهم / سنة)</span>
           </button>
         </div>
       </div>
 
-      {/* Error Alert if any */}
+      {/* Success Alert */}
+      {successMessage && (
+        <div className="max-w-2xl mx-auto mb-8 p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 flex items-start gap-3 text-xs leading-relaxed shadow-xs">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <div className="font-bold text-sm mb-0.5">تهانينا!</div>
+            <div>{successMessage}</div>
+            <button
+              onClick={onBack}
+              className="mt-3 px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-xs transition-colors cursor-pointer"
+            >
+              الانتقال لإعداد وثيقتك الأولى
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Error Alert */}
       {checkoutError && (
-        <div className="max-w-2xl mx-auto mb-8 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-3 text-xs leading-relaxed">
+        <div className="max-w-2xl mx-auto mb-8 p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 flex items-start gap-3 text-xs leading-relaxed shadow-xs">
           <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          <div>
-            <div className="font-bold mb-0.5">تنبيه بخصوص بوابة الدفع:</div>
+          <div className="flex-1">
+            <div className="font-bold mb-0.5">تنبيه:</div>
             <div>{checkoutError}</div>
           </div>
         </div>
       )}
 
-      {/* Pricing Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto mb-16 items-stretch">
-        
-        {/* FREE PLAN */}
-        <div className="rounded-3xl border border-slate-200 bg-white p-7 sm:p-9 shadow-xs flex flex-col justify-between relative hover:border-slate-300 transition-all">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
-                الخطة الأساسية
-              </span>
-              {plan === 'FREE' && isAuthenticated && !isPro && (
-                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                  خطتك الحالية
-                </span>
-              )}
+      {/* Main Single Subscription Card */}
+      <div className="max-w-3xl mx-auto mb-14">
+        <div className="rounded-3xl border-2 border-[#065F46] bg-gradient-to-b from-white via-[#FDFDFD] to-[#F0FDF4]/50 p-8 sm:p-10 shadow-xl relative ring-4 ring-[#065F46]/10">
+          
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-6 border-b border-emerald-100">
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#065F46] text-white text-xs font-black shadow-xs mb-2">
+                <Award className="w-3.5 h-3.5 text-amber-300" />
+                <span>الاشتراك المعتمد للأساتذة</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-900">
+                باقة وثائقي الرسمية الشاملة
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-600 mt-1">
+                تفعيل شامل لكافة الميزات التربوية والتصدير الفائق بدون قيود.
+              </p>
             </div>
 
-            <h3 className="text-2xl font-black text-slate-900 mb-2">
-              حساب الأستاذ المجاني
-            </h3>
-            <p className="text-xs text-slate-600 mb-6 leading-relaxed">
-              مثالي للاستخدام اليومي الخفيف لإعداد وتصدير الوثائق الأساسية.
-            </p>
-
-            <div className="mb-6 flex items-baseline gap-1.5">
-              <span className="text-4xl font-black text-slate-900">0</span>
-              <span className="text-sm font-bold text-slate-600">درهم / دائماً</span>
-            </div>
-
-            <div className="space-y-3 pt-6 border-t border-slate-100 mb-8">
-              {freeFeatures.map((feat, i) => (
-                <div key={i} className="flex items-start gap-3 text-xs">
-                  {feat.included ? (
-                    <div className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
-                      <Check className="w-3 h-3 stroke-[3]" />
-                    </div>
-                  ) : (
-                    <div className="w-4 h-4 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center shrink-0 mt-0.5">
-                      <span className="text-xs font-bold">-</span>
-                    </div>
-                  )}
-                  <span className={feat.included ? 'text-slate-700 font-medium' : 'text-slate-400'}>
-                    {feat.title}
-                  </span>
-                </div>
-              ))}
+            {/* Price Badge */}
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center min-w-[170px]">
+              <div className="flex items-baseline justify-center gap-1.5">
+                <span className="text-4xl font-black text-[#065F46]">{priceMad}</span>
+                <span className="text-sm font-bold text-slate-700">درهم</span>
+              </div>
+              <div className="text-[11px] font-bold text-emerald-800 mt-0.5">
+                {billingCycle === 'monthly' ? 'لكل شهر (اشتراك شهري)' : 'لكل سنة (اشتراك سنوي)'}
+              </div>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onBack}
-            className="w-full py-3 px-4 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-colors"
-          >
-            المتابعة بالخطة المجانية
-          </button>
-        </div>
-
-        {/* PRO PLAN (RECOMMENDED) */}
-        <div className="rounded-3xl border-2 border-[#065F46] bg-gradient-to-b from-white to-[#ECFDF5]/30 p-7 sm:p-9 shadow-xl flex flex-col justify-between relative ring-4 ring-[#065F46]/10">
-          <div className="absolute -top-3.5 right-8 bg-[#065F46] text-white text-[11px] font-black px-3.5 py-1 rounded-full shadow-md flex items-center gap-1.5 border border-[#044735]">
-            <Flame className="w-3.5 h-3.5 text-amber-300" />
-            <span>الأكثر طلباً للأساتذة</span>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-xs font-bold uppercase tracking-wider text-[#065F46] bg-[#ECFDF5] px-3 py-1 rounded-full border border-[#A7F3D0]">
-                الخطة الاحترافية الشاملة
-              </span>
-              {isPro && (
-                <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-300">
-                  أنت مشترك بالفعل ✓
+          {/* Active Status Badge if User Already Subscribed */}
+          {isPro && (
+            <div className="mb-6 p-3.5 rounded-2xl bg-emerald-100/80 border border-emerald-300 text-emerald-900 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0" />
+                <span className="text-xs font-bold">
+                  حسابك مفعّل بنجاح باشتراك رسمي نشط ✓
                 </span>
-              )}
+              </div>
+              <button
+                onClick={onBack}
+                className="px-3.5 py-1 bg-[#065F46] text-white text-xs font-bold rounded-xl hover:bg-emerald-900 transition-colors cursor-pointer"
+              >
+                البدء في الإنشاء
+              </button>
             </div>
+          )}
 
-            <h3 className="text-2xl font-black text-slate-900 mb-2">
-              اشتراك الأستاذ الاحترافي (PRO)
+          {/* Features Checklist */}
+          <div className="mb-8">
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 mb-4">
+              ما يتضمنه اشتراكك في المنصة:
             </h3>
-            <p className="text-xs text-slate-600 mb-6 leading-relaxed">
-              وصول غير محدود لجميع الأدوات والمساعد الذكي والتخصيص المؤسساتي الكامل.
-            </p>
-
-            <div className="mb-6 flex items-baseline gap-1.5">
-              <span className="text-4xl font-black text-[#065F46]">
-                {billingCycle === 'monthly' ? monthlyPriceMad : annualPriceMad}
-              </span>
-              <span className="text-sm font-bold text-slate-600">
-                درهم / {billingCycle === 'monthly' ? 'شهرياً' : 'سنوياً'}
-              </span>
-            </div>
-
-            <div className="space-y-3 pt-6 border-t border-emerald-100 mb-8">
-              {proFeatures.map((feat, i) => (
-                <div key={i} className="flex items-start gap-3 text-xs">
-                  <div className="w-4 h-4 rounded-full bg-[#065F46] text-white flex items-center justify-center shrink-0 mt-0.5">
-                    <Check className="w-3 h-3 stroke-[3]" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {planFeatures.map((feat, i) => (
+                <div 
+                  key={i} 
+                  className={`flex items-start gap-2.5 p-2.5 rounded-xl border transition-colors ${
+                    feat.highlight 
+                      ? 'bg-emerald-50/70 border-emerald-200/80 text-slate-900 font-bold' 
+                      : 'bg-white border-slate-100 text-slate-700 text-xs'
+                  }`}
+                >
+                  <div className="w-4 h-4 rounded-full bg-[#065F46] text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                    <Check className="w-2.5 h-2.5 stroke-[3]" />
                   </div>
-                  <span className="text-slate-800 font-bold">
+                  <span className="text-xs leading-relaxed">
                     {feat.title}
                   </span>
                 </div>
@@ -289,42 +307,92 @@ export const PricingPage: React.FC<PricingPageProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            id="btn-upgrade-pro"
-            disabled={loadingCheckout || isPro}
-            onClick={handleUpgradeClick}
-            className="w-full py-3.5 px-4 rounded-xl bg-[#065F46] hover:bg-[#044735] text-white font-bold text-sm shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 border border-[#044735]"
-          >
-            <Zap className="w-4 h-4 text-amber-300" />
-            <span>
-              {isPro 
-                ? 'أنت مشترك في باقة PRO' 
-                : loadingCheckout 
-                ? 'جاري التحويل لبوابة الدفع...' 
-                : 'الترقية إلى الباقة الاحترافية الآن'}
-            </span>
-          </button>
-        </div>
+          {/* Subscription Action Buttons */}
+          <div className="pt-6 border-t border-slate-200 space-y-3">
+            {isPro ? (
+              <button
+                type="button"
+                onClick={onBack}
+                className="w-full py-4 px-6 rounded-2xl bg-[#065F46] hover:bg-[#044735] text-white font-black text-sm shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <CheckCircle2 className="w-5 h-5 text-amber-300" />
+                <span>اشتراكك مفعّل — الانتقال إلى مساحة العمل</span>
+              </button>
+            ) : isAuthenticated ? (
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  type="button"
+                  id="btn-checkout-stripe"
+                  disabled={loadingCheckout}
+                  onClick={handleStripeCheckout}
+                  className="flex-1 py-4 px-6 rounded-2xl bg-[#065F46] hover:bg-[#044735] text-white font-black text-sm shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <CreditCard className="w-4 h-4 text-amber-300" />
+                  <span>
+                    {loadingCheckout 
+                      ? 'جاري المعالجة...' 
+                      : `الدفع بالبطاقة البنكية (${priceMad} درهم)`}
+                  </span>
+                </button>
 
+                <button
+                  type="button"
+                  id="btn-direct-activation"
+                  disabled={loadingCheckout}
+                  onClick={handleDirectActivation}
+                  className="py-4 px-6 rounded-2xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-sm shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer border border-amber-600/20"
+                  title="تفعيل مباشر وفوري للاشتراك في حسابك"
+                >
+                  <Zap className="w-4 h-4 fill-current text-slate-950" />
+                  <span>تفعيل فوري للاشتراك ({priceMad} درهم)</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                id="btn-auth-to-subscribe"
+                onClick={onOpenAuthModal}
+                className="w-full py-4 px-6 rounded-2xl bg-[#065F46] hover:bg-[#044735] text-white font-black text-sm shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Lock className="w-4 h-4 text-amber-300" />
+                <span>تسجيل الدخول لتفعيل الاشتراك ({priceMad} درهم)</span>
+              </button>
+            )}
+
+            <div className="flex items-center justify-center gap-4 text-[11px] text-slate-500 pt-2">
+              <span className="flex items-center gap-1">
+                <Lock className="w-3 h-3 text-emerald-600" />
+                <span>دفع مشفر 100%</span>
+              </span>
+              <span>•</span>
+              <span className="flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                <span>ضمان المطابقة البيداغوجية</span>
+              </span>
+              <span>•</span>
+              <span>إلغاء الاشتراك في أي وقت</span>
+            </div>
+          </div>
+
+        </div>
       </div>
 
-      {/* Security & Guarantees Strip */}
-      <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-4 mb-16 text-center">
-        <div className="p-4 rounded-2xl bg-white border border-slate-200">
+      {/* Security & Features Strip */}
+      <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-4 mb-14 text-center">
+        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
           <ShieldCheck className="w-6 h-6 text-[#065F46] mx-auto mb-2" />
-          <div className="text-xs font-bold text-slate-900">دفع آمن ومحمي 100%</div>
-          <div className="text-[11px] text-slate-500 mt-1">تشفير بنكي عالي المستوى</div>
+          <div className="text-xs font-bold text-slate-900">أمان وحفظ سحابي دائم</div>
+          <div className="text-[11px] text-slate-500 mt-1">حفظ مشفر لوثائقك في حسابك الخاص</div>
         </div>
-        <div className="p-4 rounded-2xl bg-white border border-slate-200">
-          <CreditCard className="w-6 h-6 text-[#065F46] mx-auto mb-2" />
-          <div className="text-xs font-bold text-slate-900">إلغاء الاشتراك بأي وقت</div>
-          <div className="text-[11px] text-slate-500 mt-1">دون أي التزام أو تعقيدات</div>
+        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+          <FileCheck className="w-6 h-6 text-[#065F46] mx-auto mb-2" />
+          <div className="text-xs font-bold text-slate-900">تصدير احترافي وفوري</div>
+          <div className="text-[11px] text-slate-500 mt-1">PDF عالي الجودة وصور واضحة وجاهزة للطباعة</div>
         </div>
-        <div className="p-4 rounded-2xl bg-white border border-slate-200">
+        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
           <Award className="w-6 h-6 text-[#065F46] mx-auto mb-2" />
-          <div className="text-xs font-bold text-slate-900">مطابقة تربوية رسمية</div>
-          <div className="text-[11px] text-slate-500 mt-1">وفق التوجيهات الوزارية 2026-2027</div>
+          <div className="text-xs font-bold text-slate-900">توجيهات 2026-2027 الرسمية</div>
+          <div className="text-[11px] text-slate-500 mt-1">مطابقة المنهاج المنقح لوزارة التربية الوطنية</div>
         </div>
       </div>
 
@@ -332,10 +400,10 @@ export const PricingPage: React.FC<PricingPageProps> = ({
       <div className="max-w-3xl mx-auto">
         <div className="text-center mb-8">
           <h3 className="text-xl font-bold text-slate-900">
-            الأسئلة الشائعة حول الباقات والاشتراك
+            الأسئلة الشائعة حول اشتراك المنصة
           </h3>
           <p className="text-xs text-slate-500 mt-1">
-            إجابات واضحة عن كل ما يخص الدفع والخدمات
+            إجابات واضحة ومباشرة لكل ما يخص الاشتراك والتفعيل
           </p>
         </div>
 

@@ -3,12 +3,26 @@ import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
-const rawApiKey = (import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyDFPC2wyrnRlwdjFseELpMb94XlmfL93_Q').trim();
-const rawProjectId = (import.meta.env.VITE_FIREBASE_PROJECT_ID || 'wata-f93c4').trim();
-const rawAuthDomain = (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'wata-f93c4.firebaseapp.com').trim();
-const rawStorageBucket = (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'wata-f93c4.firebasestorage.app').trim();
-const rawMessagingSenderId = (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '742957262082').trim();
-const rawAppId = (import.meta.env.VITE_FIREBASE_APP_ID || '1:742957262082:web:c9bbfd93e914066aff8e1b').trim();
+// =========================================================================
+// 📌 كود مشروعك المعتمد من Firebase Console:
+// =========================================================================
+const MY_CUSTOM_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDFPC2wyrnRlwdjFseELpMb94XlmfL93_Q",
+  authDomain: "wata-f93c4.firebaseapp.com",
+  projectId: "wata-f93c4",
+  storageBucket: "wata-f93c4.firebasestorage.app",
+  messagingSenderId: "742957262082",
+  appId: "1:742957262082:web:c9bbfd93e914066aff8e1b",
+  measurementId: "G-6WZ8FCWYMF",
+};
+// =========================================================================
+
+const rawApiKey = (MY_CUSTOM_FIREBASE_CONFIG.apiKey || import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyDFPC2wyrnRlwdjFseELpMb94XlmfL93_Q').trim();
+const rawProjectId = (MY_CUSTOM_FIREBASE_CONFIG.projectId || import.meta.env.VITE_FIREBASE_PROJECT_ID || 'wata-f93c4').trim();
+const rawAuthDomain = (MY_CUSTOM_FIREBASE_CONFIG.authDomain || import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'wata-f93c4.firebaseapp.com').trim();
+const rawStorageBucket = (MY_CUSTOM_FIREBASE_CONFIG.storageBucket || import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'wata-f93c4.firebasestorage.app').trim();
+const rawMessagingSenderId = (MY_CUSTOM_FIREBASE_CONFIG.messagingSenderId || import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '742957262082').trim();
+const rawAppId = (MY_CUSTOM_FIREBASE_CONFIG.appId || import.meta.env.VITE_FIREBASE_APP_ID || '1:742957262082:web:c9bbfd93e914066aff8e1b').trim();
 
 // Check if valid Firebase configuration is present
 export const isFirebaseConfigured = Boolean(
