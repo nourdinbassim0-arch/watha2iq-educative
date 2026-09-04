@@ -23,12 +23,12 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onBack, onViewPricing 
     user,
     profile,
     isPro,
+    subscription,
     logout,
     resendVerificationEmail,
     updateUserPassword,
     updateUserProfile,
     refreshUser,
-    activateSubscription,
   } = useAuth();
 
   const [fullName, setFullName] = useState(profile?.name || user?.displayName || '');
@@ -158,9 +158,16 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onBack, onViewPricing 
                     ? 'bg-emerald-100 text-emerald-900 border border-emerald-300 dark:bg-emerald-950 dark:text-emerald-200'
                     : 'bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950 dark:text-amber-200'
                 }`}>
-                  {isPro ? 'مشترك مفعّل (PRO)' : 'غير مفعّل (49 درهم)'}
+                  {isPro ? 'اشتراك سنوي نشط (49 درهم/سنة)' : 'غير مفعّل (49 درهم سنويًا)'}
                 </span>
               </div>
+
+              {subscription?.subscriptionId && (
+                <div className="flex justify-between items-center text-slate-600 dark:text-slate-400 text-[11px]">
+                  <span>بوابة الدفع:</span>
+                  <span className="font-mono font-bold text-slate-700 dark:text-slate-300">PayPal ({subscription.status})</span>
+                </div>
+              )}
 
               <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
                 <span>حالة البريد:</span>
@@ -183,7 +190,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onBack, onViewPricing 
               <div className="flex items-center justify-between text-xs mb-2">
                 <span className="font-bold text-slate-700 dark:text-slate-300">الوصول للوثائق:</span>
                 <span className={`font-bold text-xs ${isPro ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-600'}`}>
-                  {isPro ? 'غير محدود لكافة الجذاذات' : 'يتطلب تفعيل الاشتراك'}
+                  {isPro ? 'غير محدود لكافة الجذاذات الرسمية' : 'يتطلب تفعيل الاشتراك (49 درهم سنويًا)'}
                 </span>
               </div>
 
@@ -191,10 +198,10 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onBack, onViewPricing 
                 <button
                   type="button"
                   onClick={onViewPricing}
-                  className="w-full py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer mt-2"
+                  className="w-full py-2 px-3 rounded-xl bg-[#065F46] hover:bg-[#044735] text-white font-black text-xs transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer mt-2"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>تفعيل الاشتراك (49 درهم)</span>
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>تفعيل الاشتراك عبر PayPal (49 درهم سنويًا)</span>
                 </button>
               )}
             </div>

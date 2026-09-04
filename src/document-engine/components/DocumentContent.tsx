@@ -17,6 +17,7 @@ import {
   ArrowUp, 
   ArrowDown 
 } from 'lucide-react';
+import { StructuredEditableField } from './StructuredEditableField';
 
 export interface DocumentContentProps {
   documentData: DocumentData;
@@ -317,69 +318,58 @@ export const DocumentContent: React.FC<DocumentContentProps> = ({
                 {(documentData.lessonStages || []).map((stage, idx) => (
                   <tr key={stage.id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}>
                     <td className="p-2.5 border border-slate-200 font-bold text-slate-900 align-top">
-                      {isEditable && onUpdateField ? (
-                        <textarea
-                          rows={2}
-                          value={stage.stageName}
-                          onChange={(e) => handleUpdateLessonStage(idx, 'stageName', e.target.value)}
-                          className="w-full bg-transparent border-0 focus:ring-1 focus:ring-emerald-600 rounded-sm font-bold text-xs p-0 resize-y"
-                        />
-                      ) : (
-                        stage.stageName
-                      )}
+                      <StructuredEditableField
+                        multiline
+                        value={stage.stageName}
+                        onChange={(val) => handleUpdateLessonStage(idx, 'stageName', val)}
+                        isEditable={isEditable}
+                        fontWeight="bold"
+                        className="text-xs"
+                      />
                     </td>
                     <td className="p-2.5 border border-slate-200 text-center align-top font-semibold text-slate-700">
-                      {isEditable && onUpdateField ? (
-                        <input
-                          type="text"
-                          value={stage.duration}
-                          onChange={(e) => handleUpdateLessonStage(idx, 'duration', e.target.value)}
-                          className="w-full bg-transparent text-center font-bold text-xs p-0"
-                        />
-                      ) : (
-                        stage.duration
-                      )}
+                      <StructuredEditableField
+                        value={stage.duration}
+                        onChange={(val) => handleUpdateLessonStage(idx, 'duration', val)}
+                        isEditable={isEditable}
+                        align="center"
+                        className="text-center font-bold text-xs"
+                      />
                     </td>
                     <td className="p-2.5 border border-slate-200 align-top text-slate-800 leading-relaxed">
-                      {isEditable && onUpdateField ? (
-                        <textarea
-                          rows={3}
-                          value={stage.teacherActivities}
-                          onChange={(e) => handleUpdateLessonStage(idx, 'teacherActivities', e.target.value)}
-                          className="w-full bg-transparent border-0 focus:ring-1 focus:ring-emerald-600 rounded-sm text-xs p-0 resize-y"
-                        />
-                      ) : (
-                        stage.teacherActivities
-                      )}
+                      <StructuredEditableField
+                        multiline
+                        value={stage.teacherActivities}
+                        onChange={(val) => handleUpdateLessonStage(idx, 'teacherActivities', val)}
+                        isEditable={isEditable}
+                        className="text-xs leading-relaxed"
+                      />
                     </td>
                     <td className="p-2.5 border border-slate-200 align-top text-slate-800 leading-relaxed">
-                      {isEditable && onUpdateField ? (
-                        <textarea
-                          rows={3}
-                          value={stage.studentActivities}
-                          onChange={(e) => handleUpdateLessonStage(idx, 'studentActivities', e.target.value)}
-                          className="w-full bg-transparent border-0 focus:ring-1 focus:ring-emerald-600 rounded-sm text-xs p-0 resize-y"
-                        />
-                      ) : (
-                        stage.studentActivities
-                      )}
+                      <StructuredEditableField
+                        multiline
+                        value={stage.studentActivities}
+                        onChange={(val) => handleUpdateLessonStage(idx, 'studentActivities', val)}
+                        isEditable={isEditable}
+                        className="text-xs leading-relaxed"
+                      />
                     </td>
                     <td className="p-2.5 border border-slate-200 align-top text-slate-700 text-[11px]">
                       {isEditable && onUpdateField ? (
                         <div className="space-y-1">
-                          <input
-                            type="text"
+                          <StructuredEditableField
                             value={stage.evaluationMode}
-                            onChange={(e) => handleUpdateLessonStage(idx, 'evaluationMode', e.target.value)}
-                            className="w-full bg-transparent border-b border-dashed border-slate-200 text-[10px]"
+                            onChange={(val) => handleUpdateLessonStage(idx, 'evaluationMode', val)}
+                            isEditable={isEditable}
                             placeholder="التقويم..."
+                            className="text-[10px] w-full"
                           />
-                          <input
-                            type="text"
+                          <StructuredEditableField
                             value={stage.didacticTools}
-                            onChange={(e) => handleUpdateLessonStage(idx, 'didacticTools', e.target.value)}
-                            className="w-full bg-transparent text-slate-500 text-[10px]"
+                            onChange={(val) => handleUpdateLessonStage(idx, 'didacticTools', val)}
+                            isEditable={isEditable}
                             placeholder="الوسائل..."
+                            className="text-[10px] text-slate-500 w-full"
                           />
                         </div>
                       ) : (
@@ -431,18 +421,14 @@ export const DocumentContent: React.FC<DocumentContentProps> = ({
               <div className="font-calligraphy text-base font-bold text-amber-950 mb-1">
                 «ميثاق الحياة المشتركة والتعلم الإيجابي داخل فضاء الفصل»
               </div>
-              {isEditable && onUpdateField ? (
-                <textarea
-                  rows={3}
-                  value={documentData.charteIntroduction}
-                  onChange={(e) => onUpdateField('charteIntroduction', e.target.value)}
-                  className="w-full bg-transparent border-0 text-center text-xs text-slate-800 leading-relaxed p-1 focus:ring-1 focus:ring-amber-500 rounded-md"
-                />
-              ) : (
-                <p className="text-xs text-slate-800 leading-relaxed">
-                  {documentData.charteIntroduction}
-                </p>
-              )}
+              <StructuredEditableField
+                multiline
+                value={documentData.charteIntroduction || ''}
+                onChange={(val) => onUpdateField?.('charteIntroduction', val)}
+                isEditable={isEditable}
+                align="center"
+                className="text-xs text-slate-800 leading-relaxed"
+              />
             </div>
           )}
 
@@ -457,16 +443,13 @@ export const DocumentContent: React.FC<DocumentContentProps> = ({
                 </div>
                 <div className="flex-1">
                   <div className="font-bold text-xs text-emerald-950 mb-1">{rule.category}</div>
-                  {isEditable && onUpdateField ? (
-                    <textarea
-                      rows={2}
-                      value={rule.ruleText}
-                      onChange={(e) => handleUpdateCharteRule(idx, 'ruleText', e.target.value)}
-                      className="w-full bg-transparent text-xs text-slate-800 border-0 p-0 focus:ring-1 focus:ring-emerald-500"
-                    />
-                  ) : (
-                    <p className="text-xs text-slate-700 leading-relaxed">{rule.ruleText}</p>
-                  )}
+                  <StructuredEditableField
+                    multiline
+                    value={rule.ruleText}
+                    onChange={(val) => handleUpdateCharteRule(idx, 'ruleText', val)}
+                    isEditable={isEditable}
+                    className="text-xs text-slate-800 leading-relaxed"
+                  />
                 </div>
                 {isEditable && (
                   <button

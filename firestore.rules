@@ -7,14 +7,38 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Authoritative check via Custom Claims or Firestore owner document
     function isOwner() {
-      return signedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "OWNER";
+      return signedIn() && (
+        request.auth.token.role == "OWNER"
+        || request.auth.token.admin == true
+        || (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "OWNER"
+        )
+      );
     }
 
     function isSelf(uid) {
       return signedIn() && request.auth.uid == uid;
+    }
+
+    // Safe profile fields that a normal teacher is allowed to update
+    function isSafeProfileUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'fullName',
+        'name',
+        'phone',
+        'avatarUrl',
+        'preferredLanguage',
+        'school',
+        'academy',
+        'directorate',
+        'subject',
+        'grade',
+        'updatedAt',
+        'lastLogin'
+      ]);
     }
 
     // Users collection
@@ -22,20 +46,30 @@ service cloud.firestore {
       // User can read their own profile, Owner can read all profiles
       allow read: if isSelf(uid) || isOwner();
 
-      // Normal signup strictly allows TEACHER role creation for themselves
+      // Normal signup strictly enforces TEACHER role and FREE plan
       allow create: if isSelf(uid)
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.role == "TEACHER";
+        && request.resource.data.role == "TEACHER"
+        && (!('plan' in request.resource.data) || request.resource.data.plan == "FREE")
+        && (!('admin' in request.resource.data) || request.resource.data.admin == false);
 
-      // Self can update non-critical info (cannot escalate to OWNER)
-      // Owner can update any user (including roles or status)
-      allow update: if isOwner()
-        || (
-          isSelf(uid)
-          && request.resource.data.role == resource.data.role
-          && request.resource.data.uid == resource.data.uid
-        );
+      // Self can ONLY update safe pedagogical profile fields (CANNOT modify role, plan, status, subscription, admin)
+      // Owner can update any user field
+      allow update: if isOwner() || (isSelf(uid) && isSafeProfileUpdate());
 
+      allow delete: if isOwner();
+    }
+
+    // Subscriptions collection: ONLY server-side Admin SDK / Owner can write subscription state
+    match /subscriptions/{uid} {
+      allow read: if isSelf(uid) || isOwner();
+      allow write: if isOwner();
+    }
+
+    // Usage collection
+    match /usage/{uid} {
+      allow read: if isSelf(uid) || isOwner();
+      allow create, update: if isSelf(uid) || isOwner();
       allow delete: if isOwner();
     }
 
@@ -70,10 +104,12 @@ service cloud.firestore {
       allow create, update, delete: if isOwner();
     }
 
-    // Activity Logs collection (Owner-only for auditing)
+    // Activity Logs collection (Owner-only read, users can log safe actions, no privileged manipulation)
     match /auditLogs/{logId} {
       allow read: if isOwner();
-      allow create: if signedIn();
+      allow create: if signedIn() 
+        && request.resource.data.userId == request.auth.uid
+        && (!('privileged' in request.resource.data) || request.resource.data.privileged == false);
       allow update, delete: if false;
     }
   }

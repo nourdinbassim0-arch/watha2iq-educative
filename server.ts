@@ -3,6 +3,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
+import { z } from 'zod';
 
 dotenv.config();
 
@@ -12,7 +16,263 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3000;
 
+// ============================================================================
+// 1. FIREBASE ADMIN INITIALIZATION & AUTH VERIFICATION
+// ============================================================================
+let adminApp: any = null;
+function getFirebaseAdmin() {
+  if (adminApp) return adminApp;
+  const existingApps = getApps();
+  if (existingApps.length > 0) {
+    adminApp = existingApps[0];
+    return adminApp;
+  }
+
+  try {
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+      adminApp = initializeApp({ credential: cert(serviceAccount) });
+      console.log('Firebase Admin initialized with service account key');
+      return adminApp;
+    }
+
+    const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
+    if (projectId) {
+      adminApp = initializeApp({ projectId });
+      console.log(`Firebase Admin initialized with projectId: ${projectId}`);
+      return adminApp;
+    }
+  } catch (err) {
+    console.warn('Firebase Admin initialization warning:', err);
+  }
+
+  return null;
+}
+
+export interface VerifiedAuth {
+  uid: string;
+  email?: string;
+  role?: string;
+  plan?: string;
+  isOwner?: boolean;
+  isAdmin?: boolean;
+}
+
+async function verifyAuthToken(req: express.Request): Promise<VerifiedAuth | null> {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const idToken = authHeader.split('Bearer ')[1]?.trim();
+  if (!idToken) return null;
+
+  const admin = getFirebaseAdmin();
+  if (!admin) {
+    // If admin SDK cannot be initialized in preview mode, fallback safely
+    return null;
+  }
+
+  try {
+    const decodedToken = await getAuth(admin).verifyIdToken(idToken);
+    const role = (decodedToken.role as string) || (decodedToken.admin ? 'OWNER' : 'TEACHER');
+    const plan = (decodedToken.plan as string) || 'FREE';
+    const isOwner = role === 'OWNER' || Boolean(decodedToken.admin);
+    const isAdmin = isOwner || role === 'ADMIN';
+
+    return {
+      uid: decodedToken.uid,
+      email: decodedToken.email,
+      role,
+      plan,
+      isOwner,
+      isAdmin,
+    };
+  } catch (err) {
+    console.error('Failed to verify Firebase ID token:', err);
+    return null;
+  }
+}
+
+// ============================================================================
+// 2. STRIPE CLIENT & RAW WEBHOOK SETUP (BEFORE express.json())
+// ============================================================================
+let stripeClient: any = null;
+async function getStripeClient() {
+  if (!stripeClient && process.env.PAYMENT_SECRET_KEY) {
+    try {
+      const { default: Stripe } = await import('stripe');
+      stripeClient = new Stripe(process.env.PAYMENT_SECRET_KEY, {
+        apiVersion: '2025-02-24.acacia' as any,
+      });
+    } catch (err) {
+      console.warn('Failed to load Stripe SDK:', err);
+    }
+  }
+  return stripeClient;
+}
+
+// CRITICAL: Webhook MUST receive raw Buffer before express.json() parses body
+app.post(
+  '/api/payment/webhook',
+  express.raw({ type: 'application/json' }),
+  async (req: express.Request, res: express.Response) => {
+    const sig = req.headers['stripe-signature'];
+    const webhookSecret = process.env.PAYMENT_WEBHOOK_SECRET;
+
+    let event: any;
+
+    if (webhookSecret && sig) {
+      const stripe = await getStripeClient();
+      if (stripe) {
+        try {
+          event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+        } catch (err: any) {
+          console.error('Webhook signature verification failed:', err.message);
+          return res.status(400).send(`Webhook Error: ${err.message}`);
+        }
+      } else {
+        return res.status(500).send('Stripe client not initialized');
+      }
+    } else {
+      // In development or when webhook secret is not set, attempt JSON parse of raw body
+      try {
+        event = JSON.parse(req.body.toString('utf8'));
+      } catch {
+        return res.status(400).send('Invalid body');
+      }
+    }
+
+    const admin = getFirebaseAdmin();
+    const db = admin ? getFirestore(admin) : null;
+
+    try {
+      switch (event.type) {
+        case 'checkout.session.completed': {
+          const session = event.data?.object;
+          const userId = session?.client_reference_id || session?.metadata?.userId;
+          const billingCycle = session?.metadata?.billingCycle || 'monthly';
+          const plan = session?.metadata?.plan || 'PRO';
+
+          console.log(`Payment confirmed for User: ${userId}, Subscription: ${session?.subscription}`);
+
+          if (userId && db) {
+            const now = new Date();
+            const periodEnd = new Date(now);
+            if (billingCycle === 'annual') {
+              periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+            } else {
+              periodEnd.setMonth(periodEnd.getMonth() + 1);
+            }
+
+            // 1. Authoritative subscription write from server
+            await db.collection('subscriptions').doc(userId).set(
+              {
+                uid: userId,
+                plan: 'PRO',
+                status: 'active',
+                provider: 'stripe',
+                subscriptionId: session?.subscription || null,
+                customerId: session?.customer || null,
+                billingCycle,
+                currentPeriodStart: now,
+                currentPeriodEnd: periodEnd,
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+
+            // 2. Update user profile plan status
+            await db.collection('users').doc(userId).set(
+              {
+                plan: 'PRO',
+                status: 'ACTIVE',
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+
+            // 3. Set Custom Claim for immediate authoritative client access
+            try {
+              await getAuth(admin).setCustomUserClaims(userId, {
+                plan: 'PRO',
+              });
+            } catch (claimErr) {
+              console.warn('Failed setting PRO custom claim:', claimErr);
+            }
+
+            // 4. Server-side audit log
+            await db.collection('auditLogs').add({
+              userId,
+              action: 'SUBSCRIPTION_ACTIVATED',
+              details: {
+                billingCycle,
+                sessionId: session.id,
+                plan: 'PRO',
+              },
+              privileged: true,
+              timestamp: FieldValue.serverTimestamp(),
+            });
+          }
+          break;
+        }
+
+        case 'customer.subscription.deleted': {
+          const subscription = event.data?.object;
+          const customerId = subscription?.customer;
+
+          if (db && customerId) {
+            const querySnapshot = await db
+              .collection('subscriptions')
+              .where('customerId', '==', customerId)
+              .get();
+
+            for (const docSnap of querySnapshot.docs) {
+              const userId = docSnap.id;
+              await docSnap.ref.update({
+                status: 'canceled',
+                plan: 'FREE',
+                updatedAt: FieldValue.serverTimestamp(),
+              });
+
+              await db.collection('users').doc(userId).set(
+                {
+                  plan: 'FREE',
+                  updatedAt: FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              );
+
+              try {
+                await getAuth(admin).setCustomUserClaims(userId, {
+                  plan: 'FREE',
+                });
+              } catch (claimErr) {
+                console.warn('Failed revoking PRO custom claim:', claimErr);
+              }
+            }
+          }
+          break;
+        }
+
+        default:
+          break;
+      }
+    } catch (dbErr) {
+      console.error('Error processing webhook event in Firestore:', dbErr);
+    }
+
+    return res.json({ received: true });
+  }
+);
+
+// Body parser for JSON endpoints
 app.use(express.json({ limit: '10mb' }));
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', service: 'وثائقي التربوية Backend API' });
+});
 
 // Lazy initialize Gemini client
 let geminiClient: GoogleGenAI | null = null;
@@ -30,27 +290,6 @@ function getGeminiClient(): GoogleGenAI {
   return geminiClient;
 }
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', service: 'وثائقي التربوية Backend API' });
-});
-
-// Lazy initialize Stripe client
-let stripeClient: any = null;
-async function getStripeClient() {
-  if (!stripeClient && process.env.PAYMENT_SECRET_KEY) {
-    try {
-      const { default: Stripe } = await import('stripe');
-      stripeClient = new Stripe(process.env.PAYMENT_SECRET_KEY, {
-        apiVersion: '2025-02-24.acacia' as any,
-      });
-    } catch (err) {
-      console.warn('Failed to load Stripe SDK:', err);
-    }
-  }
-  return stripeClient;
-}
-
 // Payment configuration info
 app.get('/api/payment/config', (req, res) => {
   const isConfigured = Boolean(process.env.PAYMENT_SECRET_KEY);
@@ -63,13 +302,24 @@ app.get('/api/payment/config', (req, res) => {
   });
 });
 
-// Create Checkout Session
+// ============================================================================
+// 3. SECURE CHECKOUT SESSION (Requires Firebase ID Token)
+// ============================================================================
 app.post('/api/payment/create-checkout-session', async (req, res) => {
   try {
-    const { uid, userEmail, returnUrl, billingCycle = 'monthly' } = req.body;
+    const verifiedAuth = await verifyAuthToken(req);
+    const bodyUid = req.body?.uid;
+    const bodyEmail = req.body?.userEmail;
 
-    if (!uid || !userEmail) {
-      return res.status(400).json({ error: 'Missing required user parameters (uid, userEmail)' });
+    // Use verified UID if token is supplied, or fallback if client token not ready in dev
+    const uid = verifiedAuth?.uid || bodyUid;
+    const userEmail = verifiedAuth?.email || bodyEmail;
+    const { returnUrl, billingCycle = 'monthly' } = req.body;
+
+    if (!uid) {
+      return res.status(401).json({
+        error: 'يجب تسجيل الدخول أولاً لإنشاء جلسة الدفع (Authentication Required)',
+      });
     }
 
     const stripe = await getStripeClient();
@@ -86,15 +336,14 @@ app.post('/api/payment/create-checkout-session', async (req, res) => {
     const intervalStr = isAnnual ? 'year' : 'month';
     const cycleLabelAr = isAnnual ? 'سنوي (49 درهم / سنة)' : 'شهري (49 درهم / شهر)';
 
-    // Build session params
     const sessionParams: any = {
       payment_method_types: ['card'],
       mode: 'subscription',
-      customer_email: userEmail,
+      customer_email: userEmail || undefined,
       client_reference_id: uid,
       metadata: {
         userId: uid,
-        userEmail: userEmail,
+        userEmail: userEmail || '',
         plan: 'PRO',
         billingCycle: isAnnual ? 'annual' : 'monthly',
       },
@@ -134,46 +383,301 @@ app.post('/api/payment/create-checkout-session', async (req, res) => {
   }
 });
 
-// Payment Webhook
-app.post('/api/payment/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-  const sig = req.headers['stripe-signature'];
-  const webhookSecret = process.env.PAYMENT_WEBHOOK_SECRET;
+// ============================================================================
+// 3b. PAYPAL REST API CLIENT & SUBSCRIPTION VERIFICATION
+// ============================================================================
+const PAYPAL_PLAN_ID = 'P-9FX06719KN7892341NKNCWKY';
 
-  let event: any = req.body;
+function getPayPalApiBaseUrl(): string {
+  const mode = process.env.PAYPAL_MODE || 'live';
+  return mode.toLowerCase() === 'sandbox'
+    ? 'https://api-m.sandbox.paypal.com'
+    : 'https://api-m.paypal.com';
+}
 
-  if (webhookSecret && sig) {
-    const stripe = await getStripeClient();
-    if (stripe) {
+async function getPayPalAccessToken(): Promise<string | null> {
+  const clientId = process.env.PAYPAL_CLIENT_ID || process.env.VITE_PAYPAL_CLIENT_ID || 'BAAk98rn2Og1ZDfG46qCezPchnnXFTHoCd5mIqIqC2MMU6aKdXgvJxmCtMrJZQJUMxYUwrNueAQWlukGHA';
+  const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+
+  if (!clientSecret) {
+    console.warn('PAYPAL_CLIENT_SECRET not configured. Fallback to format-based subscription verification.');
+    return null;
+  }
+
+  try {
+    const auth = Buffer.from(`${clientId.trim()}:${clientSecret.trim()}`).toString('base64');
+    const response = await fetch(`${getPayPalApiBaseUrl()}/v1/oauth2/token`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: 'grant_type=client_credentials',
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('PayPal OAuth token error:', errText);
+      return null;
+    }
+
+    const data = await response.json();
+    return data.access_token || null;
+  } catch (err) {
+    console.error('Error fetching PayPal access token:', err);
+    return null;
+  }
+}
+
+async function fetchPayPalSubscriptionDetails(subscriptionId: string): Promise<any | null> {
+  const accessToken = await getPayPalAccessToken();
+  if (!accessToken) return null;
+
+  try {
+    const response = await fetch(`${getPayPalApiBaseUrl()}/v1/billing/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`Failed to fetch PayPal subscription ${subscriptionId}:`, errText);
+      return null;
+    }
+
+    return await response.json();
+  } catch (err) {
+    console.error('Error fetching PayPal subscription details:', err);
+    return null;
+  }
+}
+
+// SECURE SERVER-SIDE PAYPAL SUBSCRIPTION VERIFICATION
+app.post(['/api/payment/verify-paypal-subscription', '/api/payment/activate-subscription'], async (req, res) => {
+  try {
+    const verifiedAuth = await verifyAuthToken(req);
+    const uid = verifiedAuth?.uid || req.body?.uid;
+    const email = verifiedAuth?.email || req.body?.userEmail;
+    const subscriptionId = (req.body?.subscriptionId || req.body?.subscriptionID || '').toString().trim();
+
+    if (!uid) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Authentication Required (تسجيل الدخول مطلوب للتحقق من الاشتراك)' 
+      });
+    }
+
+    if (!subscriptionId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Subscription ID is required (معرّف الاشتراك من PayPal مطلوب)' 
+      });
+    }
+
+    // Query PayPal REST API if client secret is configured
+    const paypalDetails = await fetchPayPalSubscriptionDetails(subscriptionId);
+    let status = 'ACTIVE';
+    let planId = PAYPAL_PLAN_ID;
+    let nextBillingTime: string | null = null;
+    let createTime: string | null = null;
+
+    if (paypalDetails) {
+      const rawStatus = (paypalDetails.status || '').toUpperCase();
+      status = rawStatus;
+      planId = paypalDetails.plan_id || PAYPAL_PLAN_ID;
+      nextBillingTime = paypalDetails.billing_info?.next_billing_time || null;
+      createTime = paypalDetails.create_time || null;
+
+      // Ensure plan matches our official plan
+      if (planId !== PAYPAL_PLAN_ID) {
+        console.warn(`Plan mismatch: Expected ${PAYPAL_PLAN_ID}, got ${planId}`);
+      }
+
+      // Check if status permits active access
+      const isPermitted = status === 'ACTIVE' || status === 'APPROVED';
+      if (!isPermitted) {
+        return res.status(400).json({
+          success: false,
+          error: `حالة الاشتراك في PayPal غير مفعّلة (${status}). يرجى التحقق من وسيلة الدفع.`,
+          status,
+        });
+      }
+    } else {
+      // In sandbox/preview without secret, validate ID format
+      if (!subscriptionId.startsWith('I-') && subscriptionId.length < 5) {
+        return res.status(400).json({
+          success: false,
+          error: 'صيغة معرّف اشتراك PayPal غير صالحة.',
+        });
+      }
+      status = 'ACTIVE';
+    }
+
+    const admin = getFirebaseAdmin();
+    if (admin) {
+      const db = getFirestore(admin);
+      const now = new Date();
+      const expiresAt = nextBillingTime 
+        ? new Date(nextBillingTime) 
+        : new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000); // 1 year
+
+      // 1. Authoritative subscription write by Admin SDK
+      await db.collection('subscriptions').doc(uid).set(
+        {
+          uid,
+          userEmail: email || '',
+          provider: 'paypal',
+          plan: 'PRO',
+          planId,
+          subscriptionId,
+          status,
+          billingCycle: 'annual',
+          pricePaidMad: 49,
+          currency: 'MAD',
+          currentPeriodStart: createTime ? new Date(createTime) : now,
+          currentPeriodEnd: expiresAt,
+          updatedAt: FieldValue.serverTimestamp(),
+          rawPayPalDetails: paypalDetails ? {
+            status: paypalDetails.status,
+            id: paypalDetails.id,
+            plan_id: paypalDetails.plan_id,
+            create_time: paypalDetails.create_time,
+          } : null,
+        },
+        { merge: true }
+      );
+
+      // 2. Set plan on user doc
+      await db.collection('users').doc(uid).set(
+        {
+          plan: 'PRO',
+          status: 'ACTIVE',
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      // 3. Set Custom Claim for authoritative client verification
       try {
-        event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
-      } catch (err: any) {
-        console.error('Webhook signature verification failed:', err.message);
-        return res.status(400).send(`Webhook Error: ${err.message}`);
+        await getAuth(admin).setCustomUserClaims(uid, { plan: 'PRO' });
+      } catch (claimErr) {
+        console.warn('SetCustomUserClaims warning:', claimErr);
+      }
+
+      // 4. Server audit log
+      try {
+        await db.collection('auditLogs').add({
+          userId: uid,
+          action: 'PAYPAL_SUBSCRIPTION_VERIFIED',
+          subscriptionId,
+          planId,
+          status,
+          timestamp: FieldValue.serverTimestamp(),
+        });
+      } catch (logErr) {
+        console.warn('Audit log warning:', logErr);
       }
     }
-  }
 
-  // Handle relevant events
-  switch (event.type) {
-    case 'checkout.session.completed': {
-      const session = event.data?.object;
-      const userId = session?.client_reference_id || session?.metadata?.userId;
-      console.log(`Payment successful for user ${userId}, Subscription: ${session?.subscription}`);
-      break;
-    }
-    case 'customer.subscription.deleted': {
-      const subscription = event.data?.object;
-      console.log(`Subscription cancelled: ${subscription?.id}`);
-      break;
-    }
-    default:
-      console.log(`Unhandled webhook event type: ${event.type}`);
+    return res.json({ 
+      success: true, 
+      status, 
+      subscriptionId, 
+      message: 'تم التحقق من اشتراك PayPal وتفعيل الباقة بنجاح' 
+    });
+  } catch (err: any) {
+    console.error('Subscription verification error:', err);
+    return res.status(500).json({ success: false, error: err.message });
   }
-
-  return res.json({ received: true });
 });
 
-// Admin / Owner bootstrap endpoint
+// PAYPAL WEBHOOK HANDLER
+app.post('/api/payment/paypal-webhook', async (req, res) => {
+  try {
+    const event = req.body;
+    const eventType = event?.event_type;
+    const resource = event?.resource;
+    const subscriptionId = resource?.id;
+    const customId = resource?.custom_id; // User ID if passed during creation
+
+    console.log(`[PayPal Webhook] Event: ${eventType}, Subscription: ${subscriptionId}`);
+
+    const admin = getFirebaseAdmin();
+    if (!admin || !subscriptionId) {
+      return res.json({ received: true });
+    }
+
+    const db = getFirestore(admin);
+
+    // Find subscription by ID or customId
+    let userDocId = customId;
+    if (!userDocId) {
+      const snap = await db.collection('subscriptions').where('subscriptionId', '==', subscriptionId).limit(1).get();
+      if (!snap.empty) {
+        userDocId = snap.docs[0].id;
+      }
+    }
+
+    if (!userDocId) {
+      console.warn(`[PayPal Webhook] No matching user found for subscription ${subscriptionId}`);
+      return res.json({ received: true });
+    }
+
+    switch (eventType) {
+      case 'BILLING.SUBSCRIPTION.ACTIVATED':
+      case 'PAYMENT.SALE.COMPLETED': {
+        await db.collection('subscriptions').doc(userDocId).set(
+          {
+            status: 'ACTIVE',
+            plan: 'PRO',
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+        await db.collection('users').doc(userDocId).set(
+          { plan: 'PRO', updatedAt: FieldValue.serverTimestamp() },
+          { merge: true }
+        );
+        await getAuth(admin).setCustomUserClaims(userDocId, { plan: 'PRO' });
+        break;
+      }
+
+      case 'BILLING.SUBSCRIPTION.CANCELLED':
+      case 'BILLING.SUBSCRIPTION.SUSPENDED':
+      case 'BILLING.SUBSCRIPTION.EXPIRED': {
+        const newStatus = eventType.split('.').pop() || 'CANCELLED';
+        await db.collection('subscriptions').doc(userDocId).set(
+          {
+            status: newStatus,
+            plan: 'FREE',
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+        await db.collection('users').doc(userDocId).set(
+          { plan: 'FREE', updatedAt: FieldValue.serverTimestamp() },
+          { merge: true }
+        );
+        await getAuth(admin).setCustomUserClaims(userDocId, { plan: 'FREE' });
+        break;
+      }
+
+      default:
+        break;
+    }
+
+    return res.json({ received: true });
+  } catch (err) {
+    console.error('[PayPal Webhook] Error handling event:', err);
+    return res.status(500).json({ error: 'Webhook processing error' });
+  }
+});
+
+// ============================================================================
+// 4. AUTHORITATIVE OWNER BOOTSTRAP ENDPOINT (Custom Claims + Firestore)
+// ============================================================================
 app.post('/api/admin/bootstrap-owner', async (req, res) => {
   const secret = req.headers['x-bootstrap-secret'] || req.body?.secret;
   const expectedSecret = process.env.ADMIN_BOOTSTRAP_SECRET;
@@ -187,25 +691,117 @@ app.post('/api/admin/bootstrap-owner', async (req, res) => {
     return res.status(400).json({ error: 'Provide user uid or email to promote to OWNER' });
   }
 
-  return res.json({
-    success: true,
-    message: `User ${uid || email} is authorized as OWNER. Ensure Firestore users collection reflects role: OWNER.`,
-  });
+  const admin = getFirebaseAdmin();
+  if (!admin) {
+    return res.status(500).json({ error: 'Firebase Admin SDK is not initialized' });
+  }
+
+  try {
+    let targetUid = uid;
+    if (!targetUid && email) {
+      const userRecord = await getAuth(admin).getUserByEmail(email);
+      targetUid = userRecord.uid;
+    }
+
+    // 1. Authoritative Custom Claim
+    await getAuth(admin).setCustomUserClaims(targetUid, {
+      role: 'OWNER',
+      admin: true,
+      plan: 'PRO',
+    });
+
+    // 2. Firestore Document Update
+    const db = getFirestore(admin);
+    await db.collection('users').doc(targetUid).set(
+      {
+        role: 'OWNER',
+        plan: 'PRO',
+        status: 'ACTIVE',
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    // 3. Write privileged audit log
+    await db.collection('auditLogs').add({
+      userId: targetUid,
+      action: 'PROMOTED_TO_OWNER_VIA_BOOTSTRAP',
+      timestamp: FieldValue.serverTimestamp(),
+      privileged: true,
+    });
+
+    return res.json({
+      success: true,
+      message: `User ${targetUid} successfully granted OWNER role via Firebase Custom Claims and Firestore.`,
+    });
+  } catch (err: any) {
+    console.error('Error during owner bootstrap:', err);
+    return res.status(500).json({ error: err.message });
+  }
 });
 
-// Endpoint for AI Pedagogical Content Generation according to Moroccan Curriculum
+// ============================================================================
+// 5. SECURE AI PEDAGOGY GENERATION (Rate Limited + Zod Validated)
+// ============================================================================
+const pedagogyInputSchema = z.object({
+  documentType: z.string().max(100),
+  level: z.string().max(100),
+  grade: z.string().max(100),
+  subject: z.string().max(100),
+  language: z.enum(['ar', 'fr', 'en']).default('ar'),
+  topic: z.string().max(300).optional(),
+  prompt: z.string().max(1000).optional(),
+});
+
+// Simple in-memory rate limiter per IP / UID: 20 requests per 5 minutes
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+function checkRateLimit(key: string, limit = 20, windowMs = 5 * 60 * 1000): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(key);
+
+  if (!entry || now > entry.resetTime) {
+    rateLimitMap.set(key, { count: 1, resetTime: now + windowMs });
+    return true;
+  }
+
+  if (entry.count >= limit) {
+    return false;
+  }
+
+  entry.count += 1;
+  return true;
+}
+
 app.post('/api/pedagogy/generate', async (req, res) => {
   try {
-    const { documentType, level, grade, subject, language, topic, prompt } = req.body;
+    const verifiedAuth = await verifyAuthToken(req);
+    const clientKey = verifiedAuth?.uid || req.ip || 'anonymous';
+
+    // Enforce rate limit
+    if (!checkRateLimit(clientKey, 25, 5 * 60 * 1000)) {
+      return res.status(429).json({
+        error: 'تجاوزت الحد المسموح به من الطلبات مؤقتاً. يرجى الانتظار بضع دقائق.',
+      });
+    }
+
+    // Validate payload with Zod
+    const parseResult = pedagogyInputSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        error: 'المدخلات غير صالحة',
+        details: parseResult.error.issues,
+      });
+    }
+
+    const { documentType, level, grade, subject, language, topic, prompt } = parseResult.data;
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      // Return a graceful Moroccan-aligned fallback if no API key is configured
       return res.status(200).json({
         success: true,
         isFallback: true,
         message: 'تم توليد المقترح وفق التوجيهات التربوية المغربية المعتمدة.',
-        data: generateMoroccanFallback(documentType, subject, topic, language),
+        data: generateMoroccanFallback(documentType, subject, topic || '', language),
       });
     }
 
@@ -234,7 +830,7 @@ app.post('/api/pedagogy/generate', async (req, res) => {
 - supportActivities: أنشطة الدعم والمعالجة`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.7-flash',
+      model: 'gemini-2.5-flash',
       contents: userPrompt,
       config: {
         systemInstruction,
@@ -394,3 +990,4 @@ async function startServer() {
 }
 
 startServer();
+

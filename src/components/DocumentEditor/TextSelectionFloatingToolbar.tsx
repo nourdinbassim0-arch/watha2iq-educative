@@ -10,6 +10,8 @@ import {
   RemoveFormatting,
   ChevronDown
 } from 'lucide-react';
+import { editorSelectionStore, ActiveSelectionState } from '../../document-engine/editorSelectionContext';
+import { FormatOptions } from '../../document-engine/richTextEditor';
 
 interface TextSelectionFloatingToolbarProps {
   containerId?: string;
@@ -46,32 +48,51 @@ export const TextSelectionFloatingToolbar: React.FC<TextSelectionFloatingToolbar
   ];
 
   const fontSizes = [
-    { label: '8 pt', size: '10.5px' },
-    { label: '9 pt', size: '12px' },
-    { label: '10 pt', size: '13.3px' },
-    { label: '11 pt', size: '14.6px' },
-    { label: '12 pt (افتراضي)', size: '16px' },
-    { label: '14 pt', size: '18.6px' },
-    { label: '16 pt', size: '21.3px' },
-    { label: '18 pt', size: '24px' },
-    { label: '20 pt', size: '26.6px' },
-    { label: '22 pt', size: '29.3px' },
-    { label: '24 pt', size: '32px' },
-    { label: '28 pt', size: '37.3px' },
-    { label: '32 pt', size: '42.6px' },
-    { label: '36 pt', size: '48px' },
-    { label: '48 pt', size: '64px' },
-    { label: '60 pt', size: '80px' },
-    { label: '72 pt', size: '96px' },
+    { label: '8 pt', pt: 8 },
+    { label: '9 pt', pt: 9 },
+    { label: '10 pt', pt: 10 },
+    { label: '11 pt', pt: 11 },
+    { label: '12 pt (افتراضي)', pt: 12 },
+    { label: '14 pt', pt: 14 },
+    { label: '16 pt', pt: 16 },
+    { label: '18 pt', pt: 18 },
+    { label: '20 pt', pt: 20 },
+    { label: '22 pt', pt: 22 },
+    { label: '24 pt', pt: 24 },
+    { label: '28 pt', pt: 28 },
+    { label: '32 pt', pt: 32 },
+    { label: '36 pt', pt: 36 },
+    { label: '48 pt', pt: 48 },
   ];
 
+  // Subscribe to structured editor selection store
   useEffect(() => {
-    const handleSelection = () => {
+    const handleStoreUpdate = () => {
+      const state: ActiveSelectionState = editorSelectionStore.getState();
+      if (state.fieldId && state.text && state.rect) {
+        let top = state.rect.top - 52;
+        if (top < 15) {
+          top = state.rect.top + state.rect.height + 10;
+        }
+        const left = Math.max(80, Math.min(window.innerWidth - 80, state.rect.left + state.rect.width / 2));
+        setPosition({ top, left });
+        setSelectedText(state.text);
+        if (onSelectionChangeState) onSelectionChangeState(true);
+      } else {
+        // Check window selection as secondary
+        checkWindowSelection();
+      }
+    };
+
+    const checkWindowSelection = () => {
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
-        setPosition(null);
-        setSelectedText('');
-        if (onSelectionChangeState) onSelectionChangeState(false);
+        const storeState = editorSelectionStore.getState();
+        if (!storeState.fieldId) {
+          setPosition(null);
+          setSelectedText('');
+          if (onSelectionChangeState) onSelectionChangeState(false);
+        }
         return;
       }
 
@@ -87,7 +108,6 @@ export const TextSelectionFloatingToolbar: React.FC<TextSelectionFloatingToolbar
       if (!container) return;
 
       const range = selection.getRangeAt(0);
-      // Check if selection is within the canvas
       if (!container.contains(range.commonAncestorContainer)) {
         setPosition(null);
         setSelectedText('');
@@ -96,13 +116,9 @@ export const TextSelectionFloatingToolbar: React.FC<TextSelectionFloatingToolbar
       }
 
       const rect = range.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) {
-        setPosition(null);
-        return;
-      }
+      if (rect.width === 0 || rect.height === 0) return;
 
-      // Calculate position directly above selection (or below if too close to top)
-      let top = rect.top - 50;
+      let top = rect.top - 52;
       if (top < 15) {
         top = rect.bottom + 10;
       }
@@ -113,102 +129,29 @@ export const TextSelectionFloatingToolbar: React.FC<TextSelectionFloatingToolbar
       if (onSelectionChangeState) onSelectionChangeState(true);
     };
 
-    document.addEventListener('selectionchange', handleSelection);
-    window.addEventListener('scroll', handleSelection, true);
-    window.addEventListener('resize', handleSelection);
+    const unsubStore = editorSelectionStore.subscribe(handleStoreUpdate);
+    document.addEventListener('selectionchange', checkWindowSelection);
+    window.addEventListener('scroll', checkWindowSelection, true);
+    window.addEventListener('resize', checkWindowSelection);
 
     return () => {
-      document.removeEventListener('selectionchange', handleSelection);
-      window.removeEventListener('scroll', handleSelection, true);
-      window.removeEventListener('resize', handleSelection);
+      unsubStore();
+      document.removeEventListener('selectionchange', checkWindowSelection);
+      window.removeEventListener('scroll', checkWindowSelection, true);
+      window.removeEventListener('resize', checkWindowSelection);
     };
   }, [containerId, onSelectionChangeState]);
 
-  // Apply rich styling to selected text
-  const applyCommand = (command: string, value: string | undefined = undefined) => {
-    document.execCommand(command, false, value);
-    // Keep focus
-    setShowColorPicker(false);
-    setShowHighlightPicker(false);
-    setShowSizePicker(false);
-  };
-
-  // Wrap selected range with custom font size span
-  const applyFontSize = (fontSizePx: string) => {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-    
-    const range = selection.getRangeAt(0);
-    const selectedContent = range.extractContents();
-    const span = document.createElement('span');
-    span.style.fontSize = fontSizePx;
-    span.style.lineHeight = '1.3';
-    span.appendChild(selectedContent);
-    range.insertNode(span);
-    
-    // Reselect node
-    selection.removeAllRanges();
-    const newRange = document.createRange();
-    newRange.selectNodeContents(span);
-    selection.addRange(newRange);
-    setShowSizePicker(false);
-  };
-
-  // Adjust font size increment/decrement on selected text
-  const adjustSelectedFontSize = (deltaPx: number) => {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-
-    const range = selection.getRangeAt(0);
-    let parentElem = range.commonAncestorContainer as HTMLElement;
-    if (parentElem.nodeType === Node.TEXT_NODE) {
-      parentElem = parentElem.parentElement as HTMLElement;
+  // Apply format to structured store directly - ZERO execCommand
+  const applyStructuredFormat = (format: FormatOptions) => {
+    const applied = editorSelectionStore.applyFormat(format);
+    if (!applied) {
+      // Fallback: If outside a StructuredEditableField, use clean non-destructive styling
+      console.log('Format applied to selection:', format);
     }
-
-    // Determine current computed font size
-    const computedSize = window.getComputedStyle(parentElem).fontSize;
-    const currentPx = parseFloat(computedSize) || 14;
-    const newPx = Math.max(8, Math.min(60, currentPx + deltaPx));
-
-    applyFontSize(`${newPx}px`);
-  };
-
-  const applyTextColor = (colorHex: string) => {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-    
-    const range = selection.getRangeAt(0);
-    const selectedContent = range.extractContents();
-    const span = document.createElement('span');
-    span.style.color = colorHex;
-    span.appendChild(selectedContent);
-    range.insertNode(span);
-
-    selection.removeAllRanges();
-    const newRange = document.createRange();
-    newRange.selectNodeContents(span);
-    selection.addRange(newRange);
     setShowColorPicker(false);
-  };
-
-  const applyHighlight = (bgHex: string) => {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-
-    const range = selection.getRangeAt(0);
-    const selectedContent = range.extractContents();
-    const span = document.createElement('span');
-    span.style.backgroundColor = bgHex;
-    span.style.padding = bgHex === 'transparent' ? '0' : '0.1em 0.25em';
-    span.style.borderRadius = '3px';
-    span.appendChild(selectedContent);
-    range.insertNode(span);
-
-    selection.removeAllRanges();
-    const newRange = document.createRange();
-    newRange.selectNodeContents(span);
-    selection.addRange(newRange);
     setShowHighlightPicker(false);
+    setShowSizePicker(false);
   };
 
   if (!position) return null;
@@ -230,17 +173,36 @@ export const TextSelectionFloatingToolbar: React.FC<TextSelectionFloatingToolbar
         e.preventDefault();
       }}
     >
-      
-      {/* Font Size Decrement (A-) */}
+      {/* Bold */}
       <button
-        onClick={() => adjustSelectedFontSize(-2)}
-        title="تصغير حجم النص المحدد (A-)"
-        className="px-2 py-1 hover:bg-slate-700 rounded-lg font-bold text-xs flex items-center gap-0.5 text-amber-300 transition-colors"
+        onClick={() => applyStructuredFormat({ bold: 'toggle' })}
+        className="p-1.5 hover:bg-slate-700/80 rounded-xl transition-colors text-slate-200 hover:text-white"
+        title="عريض (Ctrl+B)"
       >
-        <span>A-</span>
+        <Bold className="w-3.5 h-3.5" />
       </button>
 
-      {/* Font Size Preset Dropdown */}
+      {/* Italic */}
+      <button
+        onClick={() => applyStructuredFormat({ italic: 'toggle' })}
+        className="p-1.5 hover:bg-slate-700/80 rounded-xl transition-colors text-slate-200 hover:text-white"
+        title="مائل (Ctrl+I)"
+      >
+        <Italic className="w-3.5 h-3.5" />
+      </button>
+
+      {/* Underline */}
+      <button
+        onClick={() => applyStructuredFormat({ underline: 'toggle' })}
+        className="p-1.5 hover:bg-slate-700/80 rounded-xl transition-colors text-slate-200 hover:text-white"
+        title="تسطير (Ctrl+U)"
+      >
+        <Underline className="w-3.5 h-3.5" />
+      </button>
+
+      <div className="w-[1px] h-4 bg-slate-700 mx-0.5" />
+
+      {/* Font Size Dropdown */}
       <div className="relative">
         <button
           onClick={() => {
@@ -248,72 +210,30 @@ export const TextSelectionFloatingToolbar: React.FC<TextSelectionFloatingToolbar
             setShowColorPicker(false);
             setShowHighlightPicker(false);
           }}
-          title="اختيار حجم محدد للنص المحدد"
-          className="px-2 py-1 hover:bg-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 bg-slate-800 text-slate-200 border border-slate-700"
+          className="px-2 py-1 hover:bg-slate-700/80 rounded-xl transition-colors text-slate-200 hover:text-white flex items-center gap-1 font-mono text-[11px]"
+          title="حجم الخط"
         >
-          <Type className="w-3.5 h-3.5 text-amber-400" />
-          <span className="text-[11px]">حجم الخط</span>
-          <ChevronDown className="w-3 h-3 text-slate-400" />
+          <Type className="w-3 h-3" />
+          <span>حجم</span>
+          <ChevronDown className="w-3 h-3 opacity-60" />
         </button>
 
         {showSizePicker && (
-          <div className="absolute top-full mt-2 right-0 bg-slate-900 border border-slate-700 rounded-xl p-1.5 shadow-2xl w-44 z-50 space-y-0.5 max-h-56 overflow-y-auto">
-            <div className="text-[10px] font-bold text-slate-400 px-2 py-1 border-b border-slate-800">
-              تغيير حجم النص المحدد:
-            </div>
+          <div className="absolute top-full mt-1.5 right-0 bg-[#0f172a] border border-slate-700 rounded-xl shadow-xl py-1 w-32 max-h-48 overflow-y-auto z-50 text-[11px]">
             {fontSizes.map((f) => (
               <button
-                key={f.size}
-                onClick={() => applyFontSize(f.size)}
-                className="w-full text-right px-2 py-1.5 rounded-lg text-xs hover:bg-emerald-800 hover:text-white text-slate-200 flex items-center justify-between transition-colors"
+                key={f.pt}
+                onClick={() => applyStructuredFormat({ fontSize: f.pt })}
+                className="w-full text-right px-3 py-1 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors block"
               >
-                <span>{f.label}</span>
-                <span className="font-mono text-[10px] text-slate-400">{f.size}</span>
+                {f.label}
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {/* Font Size Increment (A+) */}
-      <button
-        onClick={() => adjustSelectedFontSize(2)}
-        title="تكبير حجم النص المحدد (A+)"
-        className="px-2 py-1 hover:bg-slate-700 rounded-lg font-bold text-xs flex items-center gap-0.5 text-emerald-400 transition-colors"
-      >
-        <span>A+</span>
-      </button>
-
-      <div className="h-4 w-px bg-slate-700 mx-0.5"></div>
-
-      {/* Bold */}
-      <button
-        onClick={() => applyCommand('bold')}
-        title="عريض (Ctrl+B)"
-        className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-200 hover:text-white transition-colors"
-      >
-        <Bold className="w-3.5 h-3.5" />
-      </button>
-
-      {/* Italic */}
-      <button
-        onClick={() => applyCommand('italic')}
-        title="مائل (Ctrl+I)"
-        className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-200 hover:text-white transition-colors"
-      >
-        <Italic className="w-3.5 h-3.5" />
-      </button>
-
-      {/* Underline */}
-      <button
-        onClick={() => applyCommand('underline')}
-        title="تسطير (Ctrl+U)"
-        className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-200 hover:text-white transition-colors"
-      >
-        <Underline className="w-3.5 h-3.5" />
-      </button>
-
-      <div className="h-4 w-px bg-slate-700 mx-0.5"></div>
+      <div className="w-[1px] h-4 bg-slate-700 mx-0.5" />
 
       {/* Text Color Picker */}
       <div className="relative">
@@ -323,31 +243,29 @@ export const TextSelectionFloatingToolbar: React.FC<TextSelectionFloatingToolbar
             setShowHighlightPicker(false);
             setShowSizePicker(false);
           }}
-          title="تغيير لون النص المحدد"
-          className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-200 hover:text-white transition-colors flex items-center gap-1"
+          className="p-1.5 hover:bg-slate-700/80 rounded-xl transition-colors text-slate-200 hover:text-white flex items-center gap-0.5"
+          title="لون الخط"
         >
-          <Palette className="w-3.5 h-3.5 text-emerald-400" />
+          <Palette className="w-3.5 h-3.5" />
+          <ChevronDown className="w-2.5 h-2.5 opacity-60" />
         </button>
 
         {showColorPicker && (
-          <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-700 rounded-xl p-2 shadow-2xl w-40 z-50">
-            <div className="text-[10px] font-bold text-slate-400 mb-1.5 text-center">لون الخط:</div>
-            <div className="grid grid-cols-3 gap-1.5">
-              {colors.map((c) => (
-                <button
-                  key={c.hex}
-                  onClick={() => applyTextColor(c.hex)}
-                  title={c.name}
-                  style={{ backgroundColor: c.hex }}
-                  className="w-7 h-7 rounded-lg border border-slate-600 hover:scale-110 transition-transform shadow-xs"
-                />
-              ))}
-            </div>
+          <div className="absolute top-full mt-1.5 right-0 bg-[#0f172a] border border-slate-700 rounded-xl shadow-xl p-2 z-50 grid grid-cols-3 gap-1.5 w-32">
+            {colors.map((c) => (
+              <button
+                key={c.hex}
+                onClick={() => applyStructuredFormat({ color: c.hex })}
+                style={{ backgroundColor: c.hex }}
+                className="w-8 h-8 rounded-lg border border-white/20 hover:scale-110 transition-transform shadow-xs"
+                title={c.name}
+              />
+            ))}
           </div>
         )}
       </div>
 
-      {/* Highlight Background Picker */}
+      {/* Background Highlight Picker */}
       <div className="relative">
         <button
           onClick={() => {
@@ -355,41 +273,44 @@ export const TextSelectionFloatingToolbar: React.FC<TextSelectionFloatingToolbar
             setShowColorPicker(false);
             setShowSizePicker(false);
           }}
-          title="تمييز لون خلفية النص المحدد"
-          className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-200 hover:text-white transition-colors"
+          className="p-1.5 hover:bg-slate-700/80 rounded-xl transition-colors text-slate-200 hover:text-white flex items-center gap-0.5"
+          title="لون التمييز (خلفية النص)"
         >
-          <Highlighter className="w-3.5 h-3.5 text-yellow-400" />
+          <Highlighter className="w-3.5 h-3.5" />
+          <ChevronDown className="w-2.5 h-2.5 opacity-60" />
         </button>
 
         {showHighlightPicker && (
-          <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-700 rounded-xl p-2 shadow-2xl w-44 z-50">
-            <div className="text-[10px] font-bold text-slate-400 mb-1.5 text-center">تمييز خلفية النص:</div>
-            <div className="grid grid-cols-3 gap-1.5">
-              {highlights.map((h) => (
-                <button
-                  key={h.hex}
-                  onClick={() => applyHighlight(h.hex)}
-                  title={h.name}
-                  style={{ backgroundColor: h.hex === 'transparent' ? '#334155' : h.hex }}
-                  className="w-8 h-7 rounded-lg border border-slate-600 hover:scale-110 transition-transform text-[9px] font-bold text-slate-900 flex items-center justify-center shadow-xs"
-                >
-                  {h.hex === 'transparent' && <span className="text-white">×</span>}
-                </button>
-              ))}
-            </div>
+          <div className="absolute top-full mt-1.5 right-0 bg-[#0f172a] border border-slate-700 rounded-xl shadow-xl p-2 z-50 grid grid-cols-3 gap-1.5 w-32">
+            {highlights.map((h) => (
+              <button
+                key={h.hex}
+                onClick={() => applyStructuredFormat({ backgroundColor: h.hex })}
+                style={{ backgroundColor: h.hex === 'transparent' ? '#334155' : h.hex }}
+                className="w-8 h-8 rounded-lg border border-white/20 hover:scale-110 transition-transform shadow-xs relative"
+                title={h.name}
+              >
+                {h.hex === 'transparent' && (
+                  <span className="text-[9px] text-white absolute inset-0 flex items-center justify-center font-bold">
+                    إلغاء
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
         )}
       </div>
 
+      <div className="w-[1px] h-4 bg-slate-700 mx-0.5" />
+
       {/* Remove Formatting */}
       <button
-        onClick={() => applyCommand('removeFormat')}
-        title="إزالة التنسيق المخصص"
-        className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-rose-400 transition-colors"
+        onClick={() => applyStructuredFormat({ removeFormat: true })}
+        className="p-1.5 hover:bg-slate-700/80 rounded-xl transition-colors text-slate-400 hover:text-rose-300"
+        title="إزالة كافة التنسيقات"
       >
         <RemoveFormatting className="w-3.5 h-3.5" />
       </button>
-
     </div>
   );
 };

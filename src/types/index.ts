@@ -36,6 +36,12 @@ export type ExportFormat = 'pdf' | 'png' | 'jpg';
 export type UserPlan = 'FREE' | 'PRO';
 
 export type SubscriptionStatus = 
+  | 'ACTIVE' 
+  | 'APPROVED' 
+  | 'SUSPENDED' 
+  | 'CANCELLED' 
+  | 'EXPIRED' 
+  | 'PENDING'
   | 'active' 
   | 'past_due' 
   | 'canceled' 
@@ -45,15 +51,23 @@ export type SubscriptionStatus =
 
 export interface UserSubscription {
   uid: string;
-  provider?: string;
+  provider?: 'paypal' | string;
   customerId?: string;
   subscriptionId?: string;
+  planId?: string;
   plan: UserPlan;
-  status: SubscriptionStatus;
+  status: SubscriptionStatus | string;
+  price?: number;
+  pricePaidMad?: number;
+  currency?: string;
+  billingPeriod?: string;
+  billingCycle?: string;
+  startedAt?: any;
   currentPeriodStart?: any;
   currentPeriodEnd?: any;
   cancelAtPeriodEnd?: boolean;
   updatedAt?: any;
+  paypalDetails?: any;
 }
 
 export interface UserDailyUsage {

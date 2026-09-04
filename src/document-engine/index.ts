@@ -13,3 +13,6 @@ export * from './components/DocumentContent';
 export * from './components/DocumentTable';
 export * from './components/DocumentDecorations';
 export * from './components/DocumentDesignPanel';
+export * from './components/StructuredEditableField';
+export * from './richTextEditor';
+export * from './editorSelectionContext';

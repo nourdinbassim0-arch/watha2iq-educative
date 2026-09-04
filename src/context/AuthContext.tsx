@@ -39,6 +39,7 @@ interface AuthContextType {
   isEmailVerified: boolean;
   isOwner: boolean;
   isTeacher: boolean;
+  customClaims: Record<string, any> | null;
   login: (email: string, pass: string) => Promise<{ success: boolean; message?: string }>;
   loginWithGoogle: () => Promise<{ success: boolean; message?: string }>;
   loginDemo: (targetRole?: 'TEACHER' | 'OWNER') => Promise<{ success: boolean; message?: string }>;
@@ -51,7 +52,7 @@ interface AuthContextType {
   updateUserProfile: (data: { fullName?: string; phone?: string; avatarUrl?: string }) => Promise<{ success: boolean; message?: string }>;
   checkUsageAllowed: () => boolean;
   recordDocumentGeneration: () => Promise<{ allowed: boolean; remaining: number; reason?: string }>;
-  activateSubscription: (cycle?: 'monthly' | 'annual') => Promise<{ success: boolean; message?: string }>;
+  verifyAndSyncPayPalSubscription: (subscriptionId: string) => Promise<{ success: boolean; message?: string }>;
   updatePlatformSettings?: (settings: Partial<PlatformSettings>) => Promise<boolean>;
 }
 
@@ -70,6 +71,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<User | null>(null);
   const [plan, setPlan] = useState<UserPlan>('FREE');
+  const [customClaims, setCustomClaims] = useState<Record<string, any> | null>(null);
   const [subscription, setSubscription] = useState<UserSubscription | null>(null);
   const [dailyUsage, setDailyUsage] = useState<UserDailyUsage | null>(null);
   const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(DEFAULT_PLATFORM_SETTINGS);
@@ -121,9 +123,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (fbUser) {
         localStorage.removeItem('wathaiqi_demo_session');
         setUser(fbUser);
-        // Immediate fallback profile from fbUser so UI is instantly responsive
+
+        // Fetch authoritative custom claims from server-issued ID token
+        let tokenClaims: Record<string, any> = {};
+        try {
+          const idTokenRes = await fbUser.getIdTokenResult();
+          tokenClaims = idTokenRes.claims || {};
+          setCustomClaims(tokenClaims);
+        } catch (claimsErr) {
+          console.warn('Failed to retrieve token claims:', claimsErr);
+        }
+
+        // Check authoritative owner claim or configured email
         const ownerEmail = (import.meta.env.VITE_OWNER_EMAIL || 'nourdinbassim0@gmail.com').toLowerCase();
-        const isOwnerAccount = fbUser.email?.toLowerCase() === ownerEmail;
+        const isOwnerAccount = 
+          tokenClaims.role === 'OWNER' || 
+          tokenClaims.admin === true || 
+          fbUser.email?.toLowerCase() === ownerEmail;
+
+        const isProClaim = tokenClaims.plan === 'PRO' || isOwnerAccount;
+
         setProfile({
           id: fbUser.uid,
           name: fbUser.displayName || 'أستاذ المادة',
@@ -131,13 +150,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           phone: '',
           role: isOwnerAccount ? 'OWNER' : 'TEACHER',
           status: 'ACTIVE',
-          plan: isOwnerAccount ? 'PRO' : 'FREE',
+          plan: isProClaim ? 'PRO' : 'FREE',
           isVerified: fbUser.emailVerified,
           createdAt: new Date().toISOString(),
           lastLogin: new Date().toISOString(),
           avatarUrl: fbUser.photoURL || '',
         });
-        if (isOwnerAccount) {
+        if (isProClaim) {
           setPlan('PRO');
         }
 
@@ -187,11 +206,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (snap.exists()) {
               const subData = snap.data() as UserSubscription;
               setSubscription(subData);
-              if (subData.status === 'active' || subData.status === 'trialing' || isOwnerAccount) {
+              const statusUpper = (subData.status || '').toUpperCase();
+              const isPermitted = statusUpper === 'ACTIVE' || statusUpper === 'APPROVED' || subData.status === 'active';
+              if (isPermitted || isOwnerAccount) {
                 setPlan('PRO');
+              } else {
+                setPlan('FREE');
               }
             } else {
               setSubscription(null);
+              if (!isOwnerAccount) {
+                setPlan('FREE');
+              }
             }
           }, (err) => {
             console.warn('Subscription snapshot handled:', err.message);
@@ -254,9 +280,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, [platformSettings.freeDailyLimit]);
 
-  const isOwner = profile?.role === 'OWNER';
+  const isOwner = profile?.role === 'OWNER' || customClaims?.role === 'OWNER' || customClaims?.admin === true;
   const isTeacher = profile?.role === 'TEACHER';
-  const isPro = plan === 'PRO' || isOwner;
+  const subStatusUpper = (subscription?.status || '').toUpperCase();
+  const isSubscriptionPermitted = subStatusUpper === 'ACTIVE' || subStatusUpper === 'APPROVED' || subscription?.status === 'active';
+  const isPro = (plan === 'PRO' && isSubscriptionPermitted) || isOwner;
   const isAuthenticated = Boolean(user);
   const isEmailVerified = Boolean(user?.emailVerified);
 
@@ -398,70 +426,61 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   };
 
-  const activateSubscription = async (cycle: 'monthly' | 'annual' = 'annual'): Promise<{ success: boolean; message?: string }> => {
+  const verifyAndSyncPayPalSubscription = async (subscriptionId: string): Promise<{ success: boolean; message?: string }> => {
     if (!user) {
       return { success: false, message: 'يرجى تسجيل الدخول أولاً لتفعيل الاشتراك.' };
     }
 
+    if (!subscriptionId || typeof subscriptionId !== 'string') {
+      return { success: false, message: 'معرّف اشتراك PayPal غير صالح.' };
+    }
+
     try {
-      const now = new Date();
-      const durationDays = cycle === 'annual' ? 365 : 30;
-      const expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+      // 1. Retrieve fresh Firebase ID token for authenticated server verification
+      const idToken = await user.getIdToken(true);
 
-      if (db && isFirebaseConfigured) {
-        try {
-          const userRef = doc(db, 'users', user.uid);
-          await updateDoc(userRef, {
-            plan: 'PRO',
-            status: 'ACTIVE',
-            updatedAt: serverTimestamp(),
-          });
-        } catch {
-          const userRef = doc(db, 'users', user.uid);
-          await setDoc(userRef, {
-            uid: user.uid,
-            fullName: user.displayName || 'أستاذ المادة',
-            email: user.email || '',
-            role: 'TEACHER',
-            plan: 'PRO',
-            status: 'ACTIVE',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          }, { merge: true });
-        }
+      // 2. Call backend verification endpoint
+      const response = await fetch('/api/payment/verify-paypal-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          subscriptionId: subscriptionId.trim(),
+        }),
+      });
 
-        const subRef = doc(db, 'subscriptions', user.uid);
-        await setDoc(subRef, {
-          uid: user.uid,
-          userEmail: user.email || '',
-          plan: 'PRO',
-          status: 'active',
-          billingCycle: cycle,
-          pricePaidMad: 49,
-          currency: 'MAD',
-          currentPeriodStart: now.toISOString(),
-          currentPeriodEnd: expiresAt.toISOString(),
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        const errorDetail = data.error || data.message || 'فشل التحقق من صحة اشتراك PayPal لدى خوادم المنصة.';
+        return {
+          success: false,
+          message: errorDetail,
+        };
       }
 
-      setPlan('PRO');
-      if (profile) {
-        setProfile({ ...profile, plan: 'PRO' });
+      // 3. Force refresh Firebase Token to load newly assigned custom claims
+      try {
+        const refreshedTokenResult = await user.getIdTokenResult(true);
+        setCustomClaims(refreshedTokenResult.claims || {});
+      } catch (claimsErr) {
+        console.warn('Claims reload warning:', claimsErr);
       }
+
+      // 4. Reload user profile from server
+      await refreshUser();
+
       return {
         success: true,
-        message: `تم تفعيل اشتراكك بنجاح (${cycle === 'annual' ? 'اشتراك سنوي - 49 درهماً' : 'اشتراك شهري - 49 درهماً'})! شكراً لثقتكم.`,
+        message: 'تم تفعيل اشتراكك بنجاح! تم ربط حسابك باشتراك PayPal السنوي المعتمد.',
       };
     } catch (err: any) {
-      console.error('Subscription activation caught:', err);
-      setPlan('PRO');
-      if (profile) {
-        setProfile({ ...profile, plan: 'PRO' });
-      }
+      console.error('Subscription verification request error:', err);
       return {
-        success: true,
-        message: `تم تفعيل اشتراكك بنجاح (${cycle === 'annual' ? 'اشتراك سنوي - 49 درهماً' : 'اشتراك شهري - 49 درهماً'})!`,
+        success: false,
+        message: err.message || 'حدث خطأ في الاتصال أثناء التحقق من الاشتراك مع الخادم.',
       };
     }
   };
@@ -675,7 +694,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         updateUserProfile,
         checkUsageAllowed,
         recordDocumentGeneration,
-        activateSubscription,
+        verifyAndSyncPayPalSubscription,
         updatePlatformSettings,
       }}
     >
